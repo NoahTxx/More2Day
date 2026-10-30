@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
@@ -276,7 +275,7 @@ private fun ModernBottomNavItem(
     val bgColor = if (isSelected) accentColor.copy(alpha = 0.12f) else Color.Transparent
 
     val (tabTitle, iconVector) = remember(tab, currentLang) {
-        val isEn = currentLang == com.example.util.AppLanguage.EN
+        val isEn = currentLang == AppLanguage.EN
         when (tab) {
             DailyNavTab.TODAY -> "Habits" to Icons.Outlined.CheckCircle
             DailyNavTab.BLOCKS -> (if (isEn) "Blocks" else "Sperren") to Icons.Outlined.Lock

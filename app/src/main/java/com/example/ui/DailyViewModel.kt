@@ -297,7 +297,6 @@ class DailyViewModel(application: Application) : AndroidViewModel(application) {
         tasks: List<DailyTask>,
         completions: List<TaskCompletion>
     ): List<HabitStats> {
-        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val todayKey = DateUtils.getTodayKey()
         val completionsByTask = completions.groupBy { it.taskId }
 

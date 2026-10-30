@@ -6,9 +6,6 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,7 +70,6 @@ import androidx.core.content.ContextCompat
 import com.example.data.DailyTask
 import com.example.data.TaskWithCompletion
 import com.example.ui.DailyViewModel
-import com.example.ui.components.CompletionCelebrationEffect
 import com.example.ui.components.DotMatrixProgress
 import com.example.ui.components.NothingCard
 import com.example.ui.components.NothingCheckbox
@@ -176,26 +172,7 @@ fun TodayScreen(
         }
     }
 
-    val appSettings = remember(context) { AppSettings.getInstance(context) }
-    val vibrationEnabled by appSettings.vibrationFeedbackEnabled.collectAsStateWithLifecycle()
-    val animationEnabled by appSettings.completionAnimationEnabled.collectAsStateWithLifecycle()
-
-    var showCelebration by remember { mutableStateOf(false) }
-    var previousCompletedCount by remember(selectedDateKey) { mutableIntStateOf(completedCount) }
-
-    LaunchedEffect(completedCount, totalCount) {
-        if (totalCount > 0 && completedCount == totalCount && previousCompletedCount < totalCount && DateUtils.isToday(selectedDateKey)) {
-            if (animationEnabled) {
-                showCelebration = true
-            }
-            if (vibrationEnabled) {
-                HapticUtils.vibrateSuccess(context)
-            }
-        }
-        previousCompletedCount = completedCount
-    }
-
-    val onToggleTask: (Long) -> Unit = remember(isViewingToday, vibrationEnabled, tasks) {
+    val onToggleTask: (Long) -> Unit = remember(isViewingToday, tasks) {
         { taskId ->
             if (!isViewingToday) {
                 Toast.makeText(context, t("past_day_readonly_toast"), Toast.LENGTH_SHORT).show()
@@ -208,7 +185,7 @@ fun TodayScreen(
                     else -> false
                 }
                 if (isItemBlocked) {
-                    val toastMsg = when (taskItem?.task?.frequencyType) {
+                    val toastMsg = when (taskItem.task.frequencyType) {
                         "WEEKDAYS" -> String.format(t("not_due_toast"), DateUtils.formatDaysOfWeekShort(taskItem.task.daysOfWeek, language))
                         "INTERVAL" -> if (language == AppLanguage.EN) "Due in ${taskItem.daysUntilDue} days" else "In ${taskItem.daysUntilDue} Tagen fällig"
                         "WEEKLY" -> if (language == AppLanguage.EN) "Weekly goal reached (${taskItem.weeklyCompletedCount}/${taskItem.task.targetDaysPerWeek})" else "Wochenziel erreicht (${taskItem.weeklyCompletedCount}/${taskItem.task.targetDaysPerWeek})"
@@ -216,14 +193,13 @@ fun TodayScreen(
                     }
                     Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                 } else {
-                    if (vibrationEnabled) HapticUtils.vibrateTick(context)
                     viewModel.toggleTask(taskId)
                 }
             }
         }
     }
 
-    val onIncrementTask: (Long, Int) -> Unit = remember(isViewingToday, vibrationEnabled, tasks) {
+    val onIncrementTask: (Long, Int) -> Unit = remember(isViewingToday, tasks) {
         { taskId, delta ->
             if (!isViewingToday) {
                 Toast.makeText(context, t("past_day_readonly_toast"), Toast.LENGTH_SHORT).show()
@@ -236,7 +212,7 @@ fun TodayScreen(
                     else -> false
                 }
                 if (isItemBlocked && delta > 0) {
-                    val toastMsg = when (taskItem?.task?.frequencyType) {
+                    val toastMsg = when (taskItem.task.frequencyType) {
                         "WEEKDAYS" -> String.format(t("not_due_toast"), DateUtils.formatDaysOfWeekShort(taskItem.task.daysOfWeek, language))
                         "INTERVAL" -> if (language == AppLanguage.EN) "Due in ${taskItem.daysUntilDue} days" else "In ${taskItem.daysUntilDue} Tagen fällig"
                         "WEEKLY" -> if (language == AppLanguage.EN) "Weekly goal reached (${taskItem.weeklyCompletedCount}/${taskItem.task.targetDaysPerWeek})" else "Wochenziel erreicht (${taskItem.weeklyCompletedCount}/${taskItem.task.targetDaysPerWeek})"
@@ -244,7 +220,6 @@ fun TodayScreen(
                     }
                     Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                 } else {
-                    if (vibrationEnabled) HapticUtils.vibrateTick(context)
                     viewModel.incrementCounter(taskId, delta)
                 }
             }
@@ -566,8 +541,6 @@ fun TodayScreen(
                             }
                         }
                     }
-                } else if (openDueTasks.isEmpty() && completedTasks.isEmpty() && notDueTasks.isNotEmpty()) {
-                    // All tasks for today are not due (e.g. rest day) - rendered cleanly under the notDueTasks section below
                 }
 
                 // 2. COMPLETED TASKS
@@ -642,17 +615,6 @@ fun TodayScreen(
                 )
             }
         }
-
-        // Dot-Matrix Completion Celebration Overlay
-        CompletionCelebrationEffect(
-            visible = showCelebration,
-            streakDays = currentStreak,
-            accentColor = accentColor,
-            headingFont = headingFont,
-            bodyFont = bodyFont,
-            language = language,
-            onDismiss = { showCelebration = false }
-        )
     }
 }
 
