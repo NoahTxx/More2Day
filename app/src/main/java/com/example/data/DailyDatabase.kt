@@ -19,7 +19,7 @@ abstract class DailyDatabase : RoomDatabase() {
 
     companion object {
         private const val TAG = "DailyDatabase"
-        private const val DB_NAME = "daily_habits.db"
+        private const val DB_NAME = "more2day_habits.db"
 
         @Volatile
         private var INSTANCE: DailyDatabase? = null

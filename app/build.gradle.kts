@@ -17,7 +17,7 @@ android {
   val hasReleaseKeystore = releaseKeystoreFile.exists() && releaseKeystoreFile.isFile
 
   defaultConfig {
-    applicationId = "com.aistudio.dailyhabits.krvmdf"
+    applicationId = "com.more2day.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1

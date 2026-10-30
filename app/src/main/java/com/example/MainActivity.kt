@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -42,34 +45,33 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.DailyTask
 import com.example.ui.DailyViewModel
-import com.example.ui.screens.RoutinesScreen
+import com.example.ui.screens.BlocksScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StatsScreen
 import com.example.ui.screens.TaskEditDialog
 import com.example.ui.screens.TodayScreen
 import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
-import com.example.ui.theme.GeistMonoFontFamily
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.NDotFontFamily
-import com.example.ui.theme.SilkscreenFontFamily
+import com.example.util.AppAccentColor
 import com.example.util.AppSettings
-import com.example.util.BodyFont
+import com.example.util.AppStrings
 import com.example.util.DateUtils
-import com.example.util.HeadingFont
 import com.example.util.LocalAccentColor
 import com.example.util.LocalAppLanguage
 import com.example.util.LocalBodyFontFamily
 import com.example.util.LocalHeadingFontFamily
+import com.example.util.AppLanguage
 
 enum class DailyNavTab {
     TODAY,
-    ROUTINES,
+    BLOCKS,
     STATS,
     SETTINGS
 }
@@ -85,37 +87,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
             val appSettings = remember { AppSettings.getInstance(context) }
-            val selectedAccent by appSettings.selectedAccent.collectAsStateWithLifecycle()
-            val selectedHeadingFont by appSettings.selectedHeadingFont.collectAsStateWithLifecycle()
-            val selectedBodyFont by appSettings.selectedBodyFont.collectAsStateWithLifecycle()
-            val selectedLanguage by appSettings.selectedLanguage.collectAsStateWithLifecycle()
-
-            val headingFontFamily = remember(selectedHeadingFont) {
-                when (selectedHeadingFont) {
-                    HeadingFont.COURIER -> CourierPrimeFontFamily
-                    HeadingFont.NDOT -> NDotFontFamily
-                    HeadingFont.GEIST -> GeistMonoFontFamily
-                    HeadingFont.SILKSCREEN -> SilkscreenFontFamily
-                    HeadingFont.SANS -> FontFamily.SansSerif
-                }
-            }
-            val bodyFontFamily = remember(selectedBodyFont) {
-                when (selectedBodyFont) {
-                    BodyFont.GEIST -> GeistFontFamily
-                    BodyFont.COURIER -> CourierPrimeFontFamily
-                    BodyFont.MONO -> GeistMonoFontFamily
-                    BodyFont.SANS -> FontFamily.SansSerif
-                }
-            }
+            val headingFontFamily = CourierPrimeFontFamily
+            val bodyFontFamily = GeistFontFamily
 
             CompositionLocalProvider(
-                LocalAccentColor provides selectedAccent.color,
-                LocalAppLanguage provides selectedLanguage,
+                LocalAccentColor provides AppAccentColor,
+                LocalAppLanguage provides AppLanguage.DE,
                 LocalHeadingFontFamily provides headingFontFamily,
                 LocalBodyFontFamily provides bodyFontFamily
             ) {
                 MyApplicationTheme(
-                    accentColor = selectedAccent.color,
+                    accentColor = AppAccentColor,
                     headingFont = headingFontFamily,
                     bodyFont = bodyFontFamily
                 ) {
@@ -126,6 +108,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Suppress("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainContent(viewModel: DailyViewModel, appSettings: AppSettings) {
     var currentTab by rememberSaveable { mutableStateOf(DailyNavTab.TODAY) }
@@ -135,7 +118,6 @@ fun MainContent(viewModel: DailyViewModel, appSettings: AppSettings) {
     val selectedDateKey by viewModel.selectedDateKey.collectAsStateWithLifecycle()
     val tasksWithCompletions by viewModel.tasksWithCompletions.collectAsStateWithLifecycle()
     val allActiveTasks by viewModel.allActiveTasks.collectAsStateWithLifecycle()
-    val allTasks by viewModel.allTasks.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
     val currentStreak by viewModel.currentStreak.collectAsStateWithLifecycle()
     val streakStats by viewModel.streakStats.collectAsStateWithLifecycle()
@@ -189,14 +171,10 @@ fun MainContent(viewModel: DailyViewModel, appSettings: AppSettings) {
                     )
                 }
 
-                DailyNavTab.ROUTINES -> {
-                    RoutinesScreen(
+                DailyNavTab.BLOCKS -> {
+                    BlocksScreen(
                         viewModel = viewModel,
-                        tasks = allTasks,
-                        onAddTaskClick = onAddTaskClick,
-                        onEditTaskClick = { task ->
-                            openTaskEditor(task)
-                        }
+                        tasks = tasksWithCompletions
                     )
                 }
 
@@ -253,24 +231,24 @@ fun NothingBottomNavigation(
     Box(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(bottom = 12.dp),
+            .padding(bottom = 12.dp, start = 16.dp, end = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xFF101014))
+                .background(MaterialTheme.colorScheme.surface)
                 .border(
                     width = 1.dp,
-                    color = Color(0xFF26262E),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(32.dp)
                 )
-                .padding(horizontal = 6.dp, vertical = 5.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             DailyNavTab.entries.forEach { tab ->
-                NothingBottomNavItem(
+                ModernBottomNavItem(
                     tab = tab,
                     isSelected = tab == currentTab,
                     currentLang = currentLang,
@@ -284,7 +262,7 @@ fun NothingBottomNavigation(
 }
 
 @Composable
-private fun NothingBottomNavItem(
+private fun ModernBottomNavItem(
     tab: DailyNavTab,
     isSelected: Boolean,
     currentLang: com.example.util.AppLanguage,
@@ -294,15 +272,16 @@ private fun NothingBottomNavItem(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val contentColor = if (isSelected) Color(0xFFF5F5F7) else Color(0xFF6E6E78)
-    val bgColor = if (isSelected) Color(0xFF1C1C22) else Color.Transparent
+    val contentColor = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+    val bgColor = if (isSelected) accentColor.copy(alpha = 0.12f) else Color.Transparent
 
-    val tabTitle = remember(tab, currentLang) {
+    val (tabTitle, iconVector) = remember(tab, currentLang) {
+        val isEn = currentLang == com.example.util.AppLanguage.EN
         when (tab) {
-            DailyNavTab.TODAY -> if (currentLang == com.example.util.AppLanguage.EN) "TODAY" else "HEUTE"
-            DailyNavTab.ROUTINES -> if (currentLang == com.example.util.AppLanguage.EN) "ROUTINES" else "ROUTINEN"
-            DailyNavTab.STATS -> "STATS"
-            DailyNavTab.SETTINGS -> if (currentLang == com.example.util.AppLanguage.EN) "SETTINGS" else "EINSTELLUNGEN"
+            DailyNavTab.TODAY -> "Habits" to Icons.Outlined.CheckCircle
+            DailyNavTab.BLOCKS -> (if (isEn) "Blocks" else "Sperren") to Icons.Outlined.Lock
+            DailyNavTab.STATS -> (if (isEn) "Insights" else "Einblicke") to Icons.Outlined.BarChart
+            DailyNavTab.SETTINGS -> (if (isEn) "Settings" else "Optionen") to Icons.Outlined.Settings
         }
     }
 
@@ -316,36 +295,24 @@ private fun NothingBottomNavItem(
                 onClick = { onTabSelected(tab) }
             )
             .defaultMinSize(minHeight = 44.dp)
-            .padding(
-                horizontal = if (tab == DailyNavTab.SETTINGS) 12.dp else 14.dp,
-                vertical = 8.dp
-            )
+            .padding(horizontal = 14.dp, vertical = 8.dp)
             .testTag("nav_tab_${tab.name.lowercase()}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = iconVector,
+            contentDescription = tabTitle,
+            tint = contentColor,
+            modifier = Modifier.size(17.dp)
+        )
         if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(accentColor)
-            )
             Spacer(modifier = Modifier.width(6.dp))
-        }
-
-        if (tab == DailyNavTab.SETTINGS) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = tabTitle,
-                tint = if (isSelected) accentColor else contentColor,
-                modifier = Modifier.size(16.dp)
-            )
-        } else {
             Text(
                 text = tabTitle,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = bodyFont,
-                    letterSpacing = 1.sp
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
                 ),
                 color = contentColor
             )

@@ -6,13 +6,14 @@ object AppStrings {
         val isEn = language == AppLanguage.EN
         return when (key) {
             // Navigation
-            "nav_today" -> if (isEn) "TODAY" else "HEUTE"
-            "nav_routines" -> if (isEn) "ROUTINES" else "ROUTINEN"
-            "nav_stats" -> if (isEn) "STATS" else "STATS"
-            "nav_settings" -> if (isEn) "SETTINGS" else "EINSTELLUNGEN"
+            "nav_today" -> "Habits"
+            "nav_blocks" -> if (isEn) "Blocks" else "Sperren"
+            "nav_routines" -> if (isEn) "Routines" else "Routinen"
+            "nav_stats" -> if (isEn) "Insights" else "Einblicke"
+            "nav_settings" -> if (isEn) "Settings" else "Einstellungen"
 
             // TodayScreen
-            "today_header" -> "DAILY"
+            "today_header" -> "More2Day"
             "streak_title" -> if (isEn) "DAILY STREAK" else "TÄGLICHE STREAK"
             "streak_days_suffix" -> if (isEn) "Days in a row" else "Tage in Folge"
             "streak_secured" -> if (isEn) "SECURED" else "GESICHERT"

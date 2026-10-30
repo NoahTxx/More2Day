@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Daily</string>
+    <string name="app_name">More2Day</string>
     <string name="widget_title">Tägliche Aufgaben</string>
     <string name="widget_progress_title">Täglicher Fortschritt</string>
     <string name="widget_streak_title">Daily Streak</string>
@@ -8,4 +8,5 @@
     <string name="widget_empty">Keine Aufgaben für heute</string>
     <string name="notification_channel_name">Tägliche Erinnerungen</string>
     <string name="notification_channel_desc">Erinnert an noch offene tägliche Aufgaben</string>
+    <string name="accessibility_service_desc">Wird benötigt, um ablenkende Apps zu erkennen und zu sperren, bis deine täglichen Habits erledigt sind.</string>
 </resources>

@@ -270,13 +270,13 @@ fun TodayScreen(
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 150.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header with noticeably enlarged "0/5" badge on the top right
+            // Header with progress badge on the top right
             item(key = "header", contentType = "header") {
                 NothingHeader(
-                    title = "DAILY",
+                    title = if (isEn) "Habits" else "Habits",
                     subtitle = displayDate,
                     badgeText = "$completedCount / $totalCount",
-                    badgeFontSize = 26.sp
+                    badgeFontSize = 13.sp
                 )
             }
 

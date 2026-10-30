@@ -4,40 +4,20 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
-import com.example.ui.theme.GeistMonoFontFamily
-import com.example.ui.theme.NDotFontFamily
-import com.example.widget.DailyMonthMatrixWidgetProvider
-import com.example.widget.DailyProgressWidgetProvider
-import com.example.widget.DailyStreakWidgetProvider
-import com.example.widget.DailyWidgetProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+// Fixed modern design tokens (Habits First style)
+val AppAccentColor = Color(0xFF6366F1) // Indigo Modern
+val LocalAccentColor = compositionLocalOf { AppAccentColor }
+val LocalHeadingFontFamily = compositionLocalOf { CourierPrimeFontFamily }
+val LocalBodyFontFamily = compositionLocalOf { GeistFontFamily }
+
 enum class AccentColor(val key: String, val displayName: String, val color: Color) {
-    RED("RED", "Signal Red", Color(0xFFD71921)),
-    WHITE("WHITE", "Pure White", Color(0xFFF5F5F7)),
-    ORANGE("ORANGE", "Electric Orange", Color(0xFFFF6B00)),
-    GREEN("GREEN", "Matrix Green", Color(0xFFA3E635)),
-    CYAN("CYAN", "Neon Cyan", Color(0xFF06B6D4))
-}
-
-enum class HeadingFont(val key: String, val displayName: String, val subtitle: String) {
-    COURIER("COURIER", "Courier Prime", "Nothing Typewriter"),
-    NDOT("NDOT", "NDot 57", "Dot Matrix"),
-    GEIST("GEIST", "Geist Mono", "Monospace"),
-    SILKSCREEN("SILKSCREEN", "Silkscreen", "Pixel Matrix"),
-    SANS("SANS", "System Sans", "Clean Sans")
-}
-
-enum class BodyFont(val key: String, val displayName: String, val subtitle: String) {
-    GEIST("GEIST", "Geist Sans", "Modern Clean"),
-    COURIER("COURIER", "Courier Prime", "Typewriter"),
-    MONO("MONO", "Geist Mono", "Monospace"),
-    SANS("SANS", "System Sans", "Clean Sans")
+    INDIGO("INDIGO", "Indigo Modern", AppAccentColor)
 }
 
 enum class AppLanguage(val key: String, val displayName: String) {
@@ -45,21 +25,28 @@ enum class AppLanguage(val key: String, val displayName: String) {
     EN("EN", "English")
 }
 
-val LocalAccentColor = compositionLocalOf { Color(0xFFD71921) }
-val LocalHeadingFontFamily = compositionLocalOf { CourierPrimeFontFamily }
-val LocalBodyFontFamily = compositionLocalOf { GeistFontFamily }
 val LocalAppLanguage = compositionLocalOf { AppLanguage.DE }
 
 class AppSettings private constructor(private val appContext: Context) {
 
     private val prefs: SharedPreferences =
-        appContext.getSharedPreferences("daily_settings", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("more2day_settings", Context.MODE_PRIVATE)
+
+    // Fixed design token compatibility flows
+    val selectedAccent: StateFlow<AccentColor> = MutableStateFlow(AccentColor.INDIGO)
+    val selectedLanguage: StateFlow<AppLanguage> = MutableStateFlow(AppLanguage.DE)
 
     private val _routinesResetInfoDismissed = MutableStateFlow(
         prefs.getBoolean(KEY_ROUTINES_RESET_INFO_DISMISSED, false)
     )
     val routinesResetInfoDismissed: StateFlow<Boolean> = _routinesResetInfoDismissed.asStateFlow()
 
+    fun dismissRoutinesResetInfo() {
+        prefs.edit().putBoolean(KEY_ROUTINES_RESET_INFO_DISMISSED, true).apply()
+        _routinesResetInfoDismissed.value = true
+    }
+
+    // Daily General Reminder
     private val _generalReminderEnabled = MutableStateFlow(
         prefs.getBoolean(KEY_GENERAL_REMINDER_ENABLED, false)
     )
@@ -75,56 +62,36 @@ class AppSettings private constructor(private val appContext: Context) {
     )
     val generalReminderMinute: StateFlow<Int> = _generalReminderMinute.asStateFlow()
 
-    private val _selectedAccent = MutableStateFlow(
-        try {
-            AccentColor.valueOf(prefs.getString(KEY_ACCENT, AccentColor.RED.name) ?: AccentColor.RED.name)
-        } catch (e: Exception) {
-            AccentColor.RED
-        }
+    // Blocked Consumer App Packages
+    private val defaultBlockedPackages = setOf(
+        "com.instagram.android",
+        "com.zhiliaoapp.musically",
+        "com.google.android.youtube",
+        "com.reddit.frontpage",
+        "com.twitter.android"
     )
-    val selectedAccent: StateFlow<AccentColor> = _selectedAccent.asStateFlow()
 
-    private val _selectedHeadingFont = MutableStateFlow(
-        try {
-            HeadingFont.valueOf(prefs.getString(KEY_HEADING_FONT, HeadingFont.COURIER.name) ?: HeadingFont.COURIER.name)
-        } catch (e: Exception) {
-            HeadingFont.COURIER
-        }
+    private val _blockedAppPackages = MutableStateFlow<Set<String>>(
+        prefs.getStringSet(KEY_BLOCKED_PACKAGES, defaultBlockedPackages)?.toSet() ?: defaultBlockedPackages
     )
-    val selectedHeadingFont: StateFlow<HeadingFont> = _selectedHeadingFont.asStateFlow()
+    val blockedAppPackages: StateFlow<Set<String>> = _blockedAppPackages.asStateFlow()
 
-    private val _selectedBodyFont = MutableStateFlow(
-        try {
-            BodyFont.valueOf(prefs.getString(KEY_BODY_FONT, BodyFont.GEIST.name) ?: BodyFont.GEIST.name)
-        } catch (e: Exception) {
-            BodyFont.GEIST
-        }
+    // Block Rule Mode ("ALL_HABITS" or "DEADLINE")
+    private val _blockRuleMode = MutableStateFlow(
+        prefs.getString(KEY_BLOCK_RULE_MODE, "ALL_HABITS") ?: "ALL_HABITS"
     )
-    val selectedBodyFont: StateFlow<BodyFont> = _selectedBodyFont.asStateFlow()
+    val blockRuleMode: StateFlow<String> = _blockRuleMode.asStateFlow()
 
-    private val _selectedLanguage = MutableStateFlow(
-        try {
-            AppLanguage.valueOf(prefs.getString(KEY_LANGUAGE, AppLanguage.DE.name) ?: AppLanguage.DE.name)
-        } catch (e: Exception) {
-            AppLanguage.DE
-        }
+    // Deadline Time for Blocking (e.g. 20:30)
+    private val _blockDeadlineHour = MutableStateFlow(
+        prefs.getInt(KEY_BLOCK_DEADLINE_HOUR, 20)
     )
-    val selectedLanguage: StateFlow<AppLanguage> = _selectedLanguage.asStateFlow()
+    val blockDeadlineHour: StateFlow<Int> = _blockDeadlineHour.asStateFlow()
 
-    private val _vibrationFeedbackEnabled = MutableStateFlow(
-        prefs.getBoolean(KEY_VIBRATION_FEEDBACK_ENABLED, false)
+    private val _blockDeadlineMinute = MutableStateFlow(
+        prefs.getInt(KEY_BLOCK_DEADLINE_MINUTE, 30)
     )
-    val vibrationFeedbackEnabled: StateFlow<Boolean> = _vibrationFeedbackEnabled.asStateFlow()
-
-    private val _completionAnimationEnabled = MutableStateFlow(
-        prefs.getBoolean(KEY_COMPLETION_ANIMATION_ENABLED, true)
-    )
-    val completionAnimationEnabled: StateFlow<Boolean> = _completionAnimationEnabled.asStateFlow()
-
-    fun dismissRoutinesResetInfo() {
-        prefs.edit().putBoolean(KEY_ROUTINES_RESET_INFO_DISMISSED, true).apply()
-        _routinesResetInfoDismissed.value = true
-    }
+    val blockDeadlineMinute: StateFlow<Int> = _blockDeadlineMinute.asStateFlow()
 
     fun setGeneralReminderEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_GENERAL_REMINDER_ENABLED, enabled).apply()
@@ -140,41 +107,45 @@ class AppSettings private constructor(private val appContext: Context) {
         _generalReminderMinute.value = minute
     }
 
-    fun setAccentColor(accent: AccentColor) {
-        prefs.edit().putString(KEY_ACCENT, accent.name).apply()
-        _selectedAccent.value = accent
-        DailyWidgetProvider.notifyDataChanged(appContext)
-        DailyStreakWidgetProvider.notifyDataChanged(appContext)
-        DailyMonthMatrixWidgetProvider.notifyDataChanged(appContext)
-        DailyProgressWidgetProvider.notifyDataChanged(appContext)
+    fun setBlockedAppPackages(packages: Set<String>) {
+        prefs.edit().putStringSet(KEY_BLOCKED_PACKAGES, packages).apply()
+        _blockedAppPackages.value = packages
     }
 
-    fun setHeadingFont(font: HeadingFont) {
-        prefs.edit().putString(KEY_HEADING_FONT, font.name).apply()
-        _selectedHeadingFont.value = font
+    fun toggleBlockedPackage(packageName: String) {
+        val current = _blockedAppPackages.value.toMutableSet()
+        if (current.contains(packageName)) {
+            current.remove(packageName)
+        } else {
+            current.add(packageName)
+        }
+        setBlockedAppPackages(current)
     }
 
-    fun setBodyFont(font: BodyFont) {
-        prefs.edit().putString(KEY_BODY_FONT, font.name).apply()
-        _selectedBodyFont.value = font
+    fun setBlockRuleMode(mode: String) {
+        prefs.edit().putString(KEY_BLOCK_RULE_MODE, mode).apply()
+        _blockRuleMode.value = mode
     }
 
-    fun setLanguage(language: AppLanguage) {
-        prefs.edit().putString(KEY_LANGUAGE, language.name).apply()
-        _selectedLanguage.value = language
-        DailyWidgetProvider.notifyDataChanged(appContext)
-        DailyStreakWidgetProvider.notifyDataChanged(appContext)
-        DailyMonthMatrixWidgetProvider.notifyDataChanged(appContext)
-        DailyProgressWidgetProvider.notifyDataChanged(appContext)
+    fun setBlockDeadlineTime(hour: Int, minute: Int) {
+        prefs.edit()
+            .putInt(KEY_BLOCK_DEADLINE_HOUR, hour)
+            .putInt(KEY_BLOCK_DEADLINE_MINUTE, minute)
+            .apply()
+        _blockDeadlineHour.value = hour
+        _blockDeadlineMinute.value = minute
     }
 
+    // Keep compatibility stubs so existing references and tests don't crash
+    private val _vibrationFeedbackEnabled = MutableStateFlow(false)
+    val vibrationFeedbackEnabled: StateFlow<Boolean> = _vibrationFeedbackEnabled.asStateFlow()
     fun setVibrationFeedbackEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_VIBRATION_FEEDBACK_ENABLED, enabled).apply()
         _vibrationFeedbackEnabled.value = enabled
     }
 
+    private val _completionAnimationEnabled = MutableStateFlow(true)
+    val completionAnimationEnabled: StateFlow<Boolean> = _completionAnimationEnabled.asStateFlow()
     fun setCompletionAnimationEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_COMPLETION_ANIMATION_ENABLED, enabled).apply()
         _completionAnimationEnabled.value = enabled
     }
 
@@ -183,12 +154,10 @@ class AppSettings private constructor(private val appContext: Context) {
         private const val KEY_GENERAL_REMINDER_ENABLED = "general_reminder_enabled"
         private const val KEY_GENERAL_REMINDER_HOUR = "general_reminder_hour"
         private const val KEY_GENERAL_REMINDER_MINUTE = "general_reminder_minute"
-        private const val KEY_ACCENT = "app_accent"
-        private const val KEY_HEADING_FONT = "heading_font"
-        private const val KEY_BODY_FONT = "body_font"
-        private const val KEY_LANGUAGE = "app_language"
-        private const val KEY_VIBRATION_FEEDBACK_ENABLED = "vibration_feedback_enabled"
-        private const val KEY_COMPLETION_ANIMATION_ENABLED = "completion_animation_enabled"
+        private const val KEY_BLOCKED_PACKAGES = "blocked_app_packages"
+        private const val KEY_BLOCK_RULE_MODE = "block_rule_mode"
+        private const val KEY_BLOCK_DEADLINE_HOUR = "block_deadline_hour"
+        private const val KEY_BLOCK_DEADLINE_MINUTE = "block_deadline_minute"
 
         @Volatile
         private var instance: AppSettings? = null
