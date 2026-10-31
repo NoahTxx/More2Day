@@ -4,20 +4,20 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
-import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-// Fixed modern design tokens (Habits First style)
-val AppAccentColor = Color(0xFF6366F1) // Indigo Modern
+// Fixed modern design tokens (Clean Monochrome)
+val AppAccentColor = Color.White
 val LocalAccentColor = compositionLocalOf { AppAccentColor }
-val LocalHeadingFontFamily = compositionLocalOf { CourierPrimeFontFamily }
+val LocalHeadingFontFamily = compositionLocalOf { GeistFontFamily }
 val LocalBodyFontFamily = compositionLocalOf { GeistFontFamily }
 
 enum class AccentColor(val key: String, val displayName: String, val color: Color) {
-    INDIGO("INDIGO", "Indigo Modern", AppAccentColor)
+    MONOCHROME("MONOCHROME", "Monochrome", Color.White),
+    INDIGO("INDIGO", "Monochrome", Color.White)
 }
 
 enum class AppLanguage(val key: String, val displayName: String) {
@@ -32,8 +32,31 @@ class AppSettings private constructor(private val appContext: Context) {
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("more2day_settings", Context.MODE_PRIVATE)
 
+    init {
+        // Ensure the initial block list is completely empty as requested by user
+        val hasMigratedV2 = prefs.getBoolean(KEY_BLOCKED_PACKAGES_INITIALIZED_V2, false)
+        if (!hasMigratedV2) {
+            val oldDefault = setOf(
+                "com.instagram.android",
+                "com.zhiliaoapp.musically",
+                "com.google.android.youtube",
+                "com.reddit.frontpage",
+                "com.twitter.android"
+            )
+            val stored = prefs.getStringSet(KEY_BLOCKED_PACKAGES, null)
+            if (stored == null || stored == oldDefault) {
+                prefs.edit()
+                    .putStringSet(KEY_BLOCKED_PACKAGES, emptySet())
+                    .putBoolean(KEY_BLOCKED_PACKAGES_INITIALIZED_V2, true)
+                    .apply()
+            } else {
+                prefs.edit().putBoolean(KEY_BLOCKED_PACKAGES_INITIALIZED_V2, true).apply()
+            }
+        }
+    }
+
     // Fixed design token compatibility flows
-    val selectedAccent: StateFlow<AccentColor> = MutableStateFlow(AccentColor.INDIGO)
+    val selectedAccent: StateFlow<AccentColor> = MutableStateFlow(AccentColor.MONOCHROME)
     val selectedLanguage: StateFlow<AppLanguage> = MutableStateFlow(AppLanguage.DE)
 
     private val _routinesResetInfoDismissed = MutableStateFlow(
@@ -62,14 +85,8 @@ class AppSettings private constructor(private val appContext: Context) {
     )
     val generalReminderMinute: StateFlow<Int> = _generalReminderMinute.asStateFlow()
 
-    // Blocked Consumer App Packages
-    private val defaultBlockedPackages = setOf(
-        "com.instagram.android",
-        "com.zhiliaoapp.musically",
-        "com.google.android.youtube",
-        "com.reddit.frontpage",
-        "com.twitter.android"
-    )
+    // Blocked Consumer App Packages (Initially empty - user selects their own apps)
+    private val defaultBlockedPackages = emptySet<String>()
 
     private val _blockedAppPackages = MutableStateFlow<Set<String>>(
         prefs.getStringSet(KEY_BLOCKED_PACKAGES, defaultBlockedPackages)?.toSet() ?: defaultBlockedPackages
@@ -155,6 +172,7 @@ class AppSettings private constructor(private val appContext: Context) {
         private const val KEY_GENERAL_REMINDER_HOUR = "general_reminder_hour"
         private const val KEY_GENERAL_REMINDER_MINUTE = "general_reminder_minute"
         private const val KEY_BLOCKED_PACKAGES = "blocked_app_packages"
+        private const val KEY_BLOCKED_PACKAGES_INITIALIZED_V2 = "blocked_packages_v2_empty_default"
         private const val KEY_BLOCK_RULE_MODE = "block_rule_mode"
         private const val KEY_BLOCK_DEADLINE_HOUR = "block_deadline_hour"
         private const val KEY_BLOCK_DEADLINE_MINUTE = "block_deadline_minute"

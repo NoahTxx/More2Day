@@ -57,7 +57,6 @@ import com.example.ui.components.NothingCard
 import com.example.ui.components.ShapeCardLarge
 import com.example.ui.components.ShapeCardMedium
 import com.example.ui.components.ShapePill
-import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.DateUtils
@@ -97,6 +96,11 @@ class LockOverlayActivity : ComponentActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         startActivity(homeIntent)
+        finish()
+    }
+
+    override fun onStop() {
+        super.onStop()
         finish()
     }
 
@@ -156,7 +160,7 @@ fun LockOverlayContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0C0D10))
+            .background(Color(0xFF111216))
             .statusBarsPadding()
             .padding(horizontal = 24.dp, vertical = 20.dp),
         contentAlignment = Alignment.Center
@@ -169,62 +173,63 @@ fun LockOverlayContent(
             // Lock Icon Badge
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(72.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF6366F1).copy(alpha = 0.12f))
-                    .border(1.5.dp, Color(0xFF6366F1).copy(alpha = 0.35f), CircleShape),
+                    .background(Color(0xFF1C1D22))
+                    .border(1.5.dp, Color(0xFF282A33), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Lock,
                     contentDescription = "Gesperrt",
-                    tint = Color(0xFF6366F1),
-                    modifier = Modifier.size(36.dp)
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Main Message
+            // Headline
             Text(
-                text = "Erst erledigen,\ndann scrollen!",
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontFamily = CourierPrimeFontFamily,
+                text = "Erst die Gewohnheiten,\ndann scrollen.",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = GeistFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp,
+                    fontSize = 24.sp,
+                    lineHeight = 30.sp,
                     textAlign = TextAlign.Center
                 ),
                 color = Color.White
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
+            // Subtitle
             Text(
                 text = if (blockedAppName.isNotEmpty() && blockedAppName != blockedPackage) {
-                    "$blockedAppName ist gesperrt, bis du deine täglichen Aufgaben erledigt hast."
+                    "$blockedAppName ist gesperrt, bis du deine heutigen Gewohnheiten erledigt hast."
                 } else {
-                    "Diese App ist gesperrt, bis du deine täglichen Aufgaben erledigt hast."
+                    "Diese App ist gesperrt, bis du deine heutigen Gewohnheiten erledigt hast."
                 },
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = GeistFontFamily,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
                     textAlign = TextAlign.Center
                 ),
                 color = Color(0xFF94A3B8),
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.padding(horizontal = 12.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Remaining Habits List Card
             if (openTasks.isNotEmpty()) {
                 NothingCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeCardMedium,
-                    backgroundColor = Color(0xFF14161B),
-                    borderColor = Color(0xFF262933)
+                    backgroundColor = Color(0xFF1C1D22),
+                    borderColor = Color(0xFF282A33)
                 ) {
                     Column(
                         modifier = Modifier
@@ -235,14 +240,14 @@ fun LockOverlayContent(
                             Icon(
                                 imageVector = Icons.Outlined.CheckCircle,
                                 contentDescription = null,
-                                tint = Color(0xFF6366F1),
+                                tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "NOCH OFFEN HEUTE (${openTasks.size}):",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontFamily = CourierPrimeFontFamily,
+                                    fontFamily = GeistFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
                                     letterSpacing = 0.5.sp
@@ -256,7 +261,7 @@ fun LockOverlayContent(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (openTasks.size > 3) 140.dp else (openTasks.size * 38).dp),
+                                .height(if (openTasks.size > 3) 130.dp else (openTasks.size * 36).dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(openTasks, key = { it.id }) { task ->
@@ -268,7 +273,7 @@ fun LockOverlayContent(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFF6366F1))
+                                            .background(Color.White)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
@@ -276,7 +281,7 @@ fun LockOverlayContent(
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = GeistFontFamily,
                                             fontWeight = FontWeight.Medium,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = Color.White,
                                         maxLines = 1,
@@ -298,64 +303,68 @@ fun LockOverlayContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Buttons
-            Button(
-                onClick = onOpenMore2Day,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = ShapePill,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6366F1),
-                    contentColor = Color.White
-                )
+            // Action Buttons
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "In More2Day erledigen",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontFamily = GeistFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                // Primary Button: "Schließen"
+                Button(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = ShapePill,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF24252C),
+                        contentColor = Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46))
+                ) {
+                    Text(
+                        text = "Schließen",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontFamily = GeistFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
                     )
-                )
-            }
+                }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedButton(
-                onClick = onClose,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = ShapePill,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFF94A3B8)
-                ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF262933))
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Schließen (Zum Homescreen)",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontFamily = GeistFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
+                // Secondary Text Button: "In More2Day erledigen"
+                Button(
+                    onClick = onOpenMore2Day,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = ShapePill,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color(0xFF94A3B8)
                     )
-                )
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.OpenInNew,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "In More2Day erledigen",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = GeistFontFamily,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        )
+                    }
+                }
             }
         }
     }

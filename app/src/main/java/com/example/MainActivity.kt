@@ -12,10 +12,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +59,6 @@ import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StatsScreen
 import com.example.ui.screens.TaskEditDialog
 import com.example.ui.screens.TodayScreen
-import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.AppAccentColor
@@ -86,7 +89,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
             val appSettings = remember { AppSettings.getInstance(context) }
-            val headingFontFamily = CourierPrimeFontFamily
+            val headingFontFamily = GeistFontFamily
             val bodyFontFamily = GeistFontFamily
 
             CompositionLocalProvider(
@@ -223,35 +226,34 @@ fun NothingBottomNavigation(
     onTabSelected: (DailyNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accentColor = LocalAccentColor.current
     val currentLang = LocalAppLanguage.current
     val bodyFont = LocalBodyFontFamily.current
 
-    Box(
+    Column(
         modifier = modifier
-            .navigationBarsPadding()
-            .padding(bottom = 12.dp, start = 16.dp, end = 16.dp),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .background(Color(0xFF141519))
     ) {
+        // Clean top hairline border only (no side borders)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(Color(0xFF23252E))
+        )
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(32.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(32.dp)
-                )
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 2.dp)
+                .navigationBarsPadding(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             DailyNavTab.entries.forEach { tab ->
-                ModernBottomNavItem(
+                HabitsBottomNavItem(
                     tab = tab,
                     isSelected = tab == currentTab,
                     currentLang = currentLang,
-                    accentColor = accentColor,
                     bodyFont = bodyFont,
                     onTabSelected = onTabSelected
                 )
@@ -261,60 +263,65 @@ fun NothingBottomNavigation(
 }
 
 @Composable
-private fun ModernBottomNavItem(
+private fun HabitsBottomNavItem(
     tab: DailyNavTab,
     isSelected: Boolean,
     currentLang: com.example.util.AppLanguage,
-    accentColor: Color,
     bodyFont: FontFamily,
     onTabSelected: (DailyNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val contentColor = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-    val bgColor = if (isSelected) accentColor.copy(alpha = 0.12f) else Color.Transparent
+    val isEn = currentLang == AppLanguage.EN
 
     val (tabTitle, iconVector) = remember(tab, currentLang) {
-        val isEn = currentLang == AppLanguage.EN
         when (tab) {
+            DailyNavTab.BLOCKS -> (if (isEn) "Blocks" else "Blocks") to Icons.Outlined.Security
+            DailyNavTab.STATS -> (if (isEn) "Einblicke" else "Einblicke") to Icons.Outlined.BarChart
             DailyNavTab.TODAY -> "Habits" to Icons.Outlined.CheckCircle
-            DailyNavTab.BLOCKS -> (if (isEn) "Blocks" else "Sperren") to Icons.Outlined.Lock
-            DailyNavTab.STATS -> (if (isEn) "Insights" else "Einblicke") to Icons.Outlined.BarChart
-            DailyNavTab.SETTINGS -> (if (isEn) "Settings" else "Optionen") to Icons.Outlined.Settings
+            DailyNavTab.SETTINGS -> (if (isEn) "Einstellungen" else "Einstellungen") to Icons.Outlined.Settings
         }
     }
 
-    Row(
+    val iconColor = if (isSelected) Color.White else Color(0xFF71717A)
+    val textColor = if (isSelected) Color.White else Color(0xFF71717A)
+
+    Column(
         modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(bgColor)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = { onTabSelected(tab) }
             )
-            .defaultMinSize(minHeight = 44.dp)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
             .testTag("nav_tab_${tab.name.lowercase()}"),
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = iconVector,
-            contentDescription = tabTitle,
-            tint = contentColor,
-            modifier = Modifier.size(17.dp)
-        )
-        if (isSelected) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = tabTitle,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = bodyFont,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp
-                ),
-                color = contentColor
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(26.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (isSelected) Color(0xFF282A33) else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = iconVector,
+                contentDescription = tabTitle,
+                tint = iconColor,
+                modifier = Modifier.size(18.dp)
             )
         }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = tabTitle,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = bodyFont,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                fontSize = 10.sp
+            ),
+            color = textColor
+        )
     }
 }

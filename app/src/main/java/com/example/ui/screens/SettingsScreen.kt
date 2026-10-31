@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.app.TimePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.ImageView
@@ -78,7 +79,6 @@ import com.example.ui.components.NothingHeader
 import com.example.ui.components.ShapeCardLarge
 import com.example.ui.components.ShapeCardMedium
 import com.example.ui.components.ShapePill
-import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
 import com.example.util.AppAccentColor
 import com.example.util.AppSettings
@@ -90,7 +90,8 @@ import kotlinx.coroutines.withContext
 data class SelectableAppInfo(
     val name: String,
     val packageName: String,
-    val icon: android.graphics.drawable.Drawable?
+    val icon: android.graphics.drawable.Drawable?,
+    val usageMillis: Long = 0L
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,7 +142,7 @@ fun SettingsScreen(
             Text(
                 text = "BERECHTIGUNGEN",
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontFamily = CourierPrimeFontFamily,
+                    fontFamily = GeistFontFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 ),
@@ -208,10 +209,11 @@ fun SettingsScreen(
                         onClick = { PermissionUtils.openAccessibilitySettings(context) },
                         shape = ShapePill,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isAccessibilityEnabled) MaterialTheme.colorScheme.surfaceVariant else accentColor,
-                            contentColor = if (isAccessibilityEnabled) MaterialTheme.colorScheme.onSurface else Color.White
+                            containerColor = Color(0xFF24252C),
+                            contentColor = Color.White
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = if (isAccessibilityEnabled) "Status" else "Aktivieren",
@@ -282,10 +284,11 @@ fun SettingsScreen(
                         onClick = { PermissionUtils.openUsageStatsSettings(context) },
                         shape = ShapePill,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            containerColor = Color(0xFF24252C),
+                            contentColor = Color.White
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = if (hasUsageStats) "Aktiv" else "Erlauben",
@@ -304,7 +307,7 @@ fun SettingsScreen(
             Text(
                 text = "APP-AUSWAHL",
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontFamily = CourierPrimeFontFamily,
+                    fontFamily = GeistFontFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 ),
@@ -375,7 +378,7 @@ fun SettingsScreen(
             Text(
                 text = "BENACHRICHTIGUNGEN",
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontFamily = CourierPrimeFontFamily,
+                    fontFamily = GeistFontFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 ),
@@ -444,8 +447,8 @@ fun SettingsScreen(
                                 }
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = accentColor,
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = Color.White,
                                 uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
@@ -483,7 +486,7 @@ fun SettingsScreen(
                             Text(
                                 text = String.format("%02d:%02d Uhr", reminderHour, reminderMinute),
                                 style = MaterialTheme.typography.titleSmall.copy(
-                                    fontFamily = CourierPrimeFontFamily,
+                                    fontFamily = GeistFontFamily,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 color = accentColor
@@ -518,7 +521,7 @@ fun SettingsScreen(
                         Text(
                             text = "More2Day",
                             style = MaterialTheme.typography.titleSmall.copy(
-                                fontFamily = CourierPrimeFontFamily,
+                                fontFamily = GeistFontFamily,
                                 fontWeight = FontWeight.Bold
                             ),
                             color = MaterialTheme.colorScheme.onSurface
@@ -557,7 +560,7 @@ fun AppPickerBottomSheet(
     val accentColor = AppAccentColor
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val allApps = remember { mutableStateListOf<SelectableAppInfo>() }
+    var allApps by remember { mutableStateOf<List<SelectableAppInfo>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -568,21 +571,34 @@ fun AppPickerBottomSheet(
                 addCategory(Intent.CATEGORY_LAUNCHER)
             }
             val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+
+            val startOfDay = com.example.util.ScreenTimeCalculator.getTodayStartMillis()
+            val now = System.currentTimeMillis()
+            val screenTimeResult = com.example.util.ScreenTimeCalculator.getScreenTimeData(context, startOfDay, now)
+
             val apps = resolveInfos.mapNotNull { ri ->
                 val pkg = ri.activityInfo.packageName
-                if (pkg == context.packageName) null
+                if (pkg == context.packageName ||
+                    pkg == "com.android.systemui" ||
+                    pkg == "com.google.android.apps.nexuslauncher" ||
+                    pkg == "com.android.launcher" ||
+                    pkg == "com.nothing.launcher"
+                ) null
                 else {
+                    val todayUsage = screenTimeResult.appUsageMap[pkg] ?: 0L
                     SelectableAppInfo(
                         name = ri.loadLabel(pm).toString(),
                         packageName = pkg,
-                        icon = try { ri.loadIcon(pm) } catch (e: Exception) { null }
-                    )
+                        icon = try { ri.loadIcon(pm) } catch (e: Exception) { null },
+                        usageMillis = todayUsage
+                    ) to todayUsage
                 }
-            }.distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
+            }.distinctBy { it.first.packageName }
+             .sortedWith(compareByDescending<Pair<SelectableAppInfo, Long>> { it.second }.thenBy { it.first.name.lowercase() })
+             .map { it.first }
 
             withContext(Dispatchers.Main) {
-                allApps.clear()
-                allApps.addAll(apps)
+                allApps = apps
                 isLoading = false
             }
         }
@@ -614,7 +630,7 @@ fun AppPickerBottomSheet(
                 Text(
                     text = "Gesperrte Apps auswählen",
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = CourierPrimeFontFamily,
+                        fontFamily = GeistFontFamily,
                         fontWeight = FontWeight.Bold
                     ),
                     color = MaterialTheme.colorScheme.onSurface
@@ -725,8 +741,16 @@ fun AppPickerBottomSheet(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1
                                 )
+                                val usageText = if (app.usageMillis > 0) {
+                                    val m = app.usageMillis / (1000 * 60)
+                                    val h = m / 60
+                                    val rem = m % 60
+                                    if (h > 0) "${h}h ${rem}m heute" else "${rem}m heute"
+                                } else {
+                                    app.packageName
+                                }
                                 Text(
-                                    text = app.packageName,
+                                    text = usageText,
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontFamily = GeistFontFamily,
                                         fontSize = 11.sp
@@ -740,8 +764,8 @@ fun AppPickerBottomSheet(
                                 checked = isBlocked,
                                 onCheckedChange = { onToggleApp(app.packageName) },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = accentColor,
-                                    checkmarkColor = Color.White
+                                    checkedColor = Color.White,
+                                    checkmarkColor = Color.Black
                                 )
                             )
                         }

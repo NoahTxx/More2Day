@@ -70,13 +70,16 @@ import androidx.core.content.ContextCompat
 import com.example.data.DailyTask
 import com.example.data.TaskWithCompletion
 import com.example.ui.DailyViewModel
-import com.example.ui.components.DotMatrixProgress
 import com.example.ui.components.NothingCard
 import com.example.ui.components.NothingCheckbox
-import com.example.ui.components.NothingHeader
 import com.example.ui.components.NothingPill
 import com.example.ui.components.NotificationPermissionCard
+import com.example.ui.components.ShapeCardLarge
+import com.example.ui.components.ShapeCardMedium
+import com.example.ui.components.ShapeCardSmall
+import com.example.ui.components.ShapePill
 import com.example.ui.components.TaskSectionHeader
+import com.example.ui.theme.GeistFontFamily
 import com.example.util.AppLanguage
 import com.example.util.AppSettings
 import com.example.util.AppStrings
@@ -151,26 +154,13 @@ fun TodayScreen(
         mandatory + extraCompleted
     }
     val totalCount = remember(requiredTodayTasks) { requiredTodayTasks.size }
-    val progressPct = remember(completedCount, totalCount) { if (totalCount > 0) ((completedCount * 100) / totalCount).coerceIn(0, 100) else 0 }
-
-    val recentDays = remember { DateUtils.getPastDays(7) }
     val isViewingToday = DateUtils.isToday(selectedDateKey)
-    val completionDateSet = remember(completionDates) { completionDates.toSet() }
 
     val language = LocalAppLanguage.current
     val accentColor = LocalAccentColor.current
     val headingFont = LocalHeadingFontFamily.current
     val bodyFont = LocalBodyFontFamily.current
     fun t(key: String): String = AppStrings.get(key, language)
-    val isEn = language == AppLanguage.EN
-
-    val categories = remember(isEn) {
-        if (isEn) {
-            listOf("ALL", "SUPPLEMENTS", "HEALTH", "FOCUS", "WORKOUT", "ROUTINE")
-        } else {
-            listOf("ALLE", "SUPPLEMENTS", "GESUNDHEIT", "FOKUS", "SPORT", "ROUTINE")
-        }
-    }
 
     val onToggleTask: (Long) -> Unit = remember(isViewingToday, tasks) {
         { taskId ->
@@ -241,18 +231,41 @@ fun TodayScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color(0xFF111216))
                 .statusBarsPadding(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 150.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header with progress badge on the top right
+            // Header
             item(key = "header", contentType = "header") {
-                NothingHeader(
-                    title = if (isEn) "Habits" else "Habits",
-                    subtitle = displayDate,
-                    badgeText = "$completedCount / $totalCount",
-                    badgeFontSize = 13.sp
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Habits",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = GeistFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            ),
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = displayDate,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = GeistFontFamily,
+                                fontSize = 13.sp
+                            ),
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
             }
 
             // Notification Permission Card (if permission not granted)
@@ -266,161 +279,6 @@ fun TodayScreen(
                         },
                         onDismissClick = { showPermissionCard = false }
                     )
-                }
-            }
-
-            // Horizontal Date Strip (Past 6 days + Today)
-            item(key = "date_strip", contentType = "date_strip") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    recentDays.forEach { dateKey ->
-                        DateStripItem(
-                            dateKey = dateKey,
-                            isSelected = dateKey == selectedDateKey,
-                            isToday = DateUtils.isToday(dateKey),
-                            hasCompletions = completionDateSet.contains(dateKey),
-                            language = language,
-                            accentColor = accentColor,
-                            onSelectDate = { viewModel.selectDate(it) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Summary Card (Progress + Streak)
-            item(key = "summary_card", contentType = "summary") {
-                NothingCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = com.example.ui.components.ShapeCardLarge,
-                    backgroundColor = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                val summaryTitle = if (totalCount == 0) t("no_habits_title")
-                                else if (completedCount == totalCount) t("all_done_title")
-                                else String.format(t("progress_completed_of"), completedCount, totalCount)
-
-                                Text(
-                                    text = summaryTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = String.format(t("progress_percent"), progressPct),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = accentColor
-                                )
-                            }
-
-                            // Streak Counter Pill
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surface, com.example.ui.components.ShapePill)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline, com.example.ui.components.ShapePill)
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(accentColor)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = String.format(t("streak_badge_days"), currentStreak),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Dot Matrix Progress
-                        DotMatrixProgress(
-                            total = totalCount,
-                            completed = completedCount,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-
-            // Category Filter Pills (LazyRow for zero-conflict silky smooth scrolling)
-            item(key = "category_filter", contentType = "category_filter") {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(
-                        items = categories,
-                        key = { it }
-                    ) { cat ->
-                        val isSelected = when (cat) {
-                            "ALL", "ALLE" -> selectedCategory == null
-                            else -> selectedCategory != null && DailyViewModel.isCategoryEquivalent(selectedCategory, cat)
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    if (isSelected) accentColor.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surface,
-                                    com.example.ui.components.ShapePill
-                                )
-                                .border(
-                                    1.dp,
-                                    if (isSelected) accentColor else MaterialTheme.colorScheme.outline,
-                                    com.example.ui.components.ShapePill
-                                )
-                                .clickable {
-                                    val catToSelect = when (cat) {
-                                        "ALL", "ALLE" -> null
-                                        else -> cat
-                                    }
-                                    viewModel.selectCategory(catToSelect)
-                                }
-                                .padding(horizontal = 14.dp, vertical = 7.dp)
-                        ) {
-                            Text(
-                                text = cat,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Past Day Read-Only Indicator
-            if (!isViewingToday) {
-                item(key = "past_day_indicator", contentType = "indicator") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NothingPill(
-                            text = "• " + t("past_day_tag") + " •",
-                            isAccent = false
-                        )
-                    }
                 }
             }
 
@@ -498,8 +356,8 @@ fun TodayScreen(
                         NothingCard(
                             modifier = Modifier.fillMaxWidth(),
                             shape = com.example.ui.components.ShapeCardMedium,
-                            backgroundColor = accentColor.copy(alpha = 0.08f),
-                            borderColor = accentColor.copy(alpha = 0.4f)
+                            backgroundColor = Color(0xFF1C1D22),
+                            borderColor = Color(0xFF282A33)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -511,13 +369,13 @@ fun TodayScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(accentColor),
+                                        .background(Color.White),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
                                         contentDescription = null,
-                                        tint = if (accentColor == Color(0xFFF5F5F7)) Color.Black else Color.White,
+                                        tint = Color.Black,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -603,15 +461,16 @@ fun TodayScreen(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(bottom = 76.dp, end = 20.dp)
+                    .border(1.dp, Color(0xFF383A46), CircleShape)
                     .testTag("add_task_fab"),
-                containerColor = accentColor,
-                contentColor = if (accentColor == Color(0xFFF5F5F7)) Color.Black else Color.White,
+                containerColor = Color(0xFF24252C),
+                contentColor = Color.White,
                 shape = CircleShape
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = t("add_habit"),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
@@ -622,59 +481,7 @@ private val STEP_OPTIONS_LARGE = listOf(1, 10, 25)
 private val STEP_OPTIONS_MEDIUM = listOf(1, 5, 10)
 private val STEP_OPTIONS_SMALL = listOf(1, 2, 5)
 
-@Composable
-private fun DateStripItem(
-    dateKey: String,
-    isSelected: Boolean,
-    isToday: Boolean,
-    hasCompletions: Boolean,
-    language: AppLanguage,
-    accentColor: Color,
-    onSelectDate: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val dayOfWeek = remember(dateKey, language) { DateUtils.getDayOfWeek(dateKey, language) }
-    val dayNumber = remember(dateKey) { DateUtils.getDayNumber(dateKey) }
-    val bg = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-    val borderClr = if (isSelected) accentColor else MaterialTheme.colorScheme.outline
-    val borderWidth = if (isSelected) 1.5.dp else 1.dp
-    val textColor = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-    val numberColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-    val dotColor = when {
-        hasCompletions -> accentColor
-        isToday -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> Color.Transparent
-    }
 
-    Column(
-        modifier = modifier
-            .clip(com.example.ui.components.ShapeCardSmall)
-            .background(bg, com.example.ui.components.ShapeCardSmall)
-            .border(borderWidth, borderClr, com.example.ui.components.ShapeCardSmall)
-            .clickable { onSelectDate(dateKey) }
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = dayOfWeek,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor
-        )
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(
-            text = dayNumber,
-            style = MaterialTheme.typography.titleMedium,
-            color = numberColor
-        )
-        Spacer(modifier = Modifier.height(3.dp))
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-    }
-}
 
 @Composable
 fun TaskRowItem(
@@ -701,23 +508,19 @@ fun TaskRowItem(
     val isWeeklyOptional = !isDone && item.task.frequencyType == "WEEKLY" && !item.isWeeklyGoalMet && !item.isMandatoryToday
     val isOpenDue = !isDone && !isNotDue && !isWeeklyOptional
 
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    val surface = MaterialTheme.colorScheme.surface
-    val outline = MaterialTheme.colorScheme.outline
-
-    val cardBg = remember(isNotDue, isDone, surfaceVariant, surface) {
+    val cardBg = remember(isNotDue, isDone) {
         when {
-            isNotDue -> surfaceVariant.copy(alpha = 0.45f)
-            isDone -> surface.copy(alpha = 0.9f)
-            else -> surface
+            isNotDue -> Color(0xFF16171D).copy(alpha = 0.5f)
+            isDone -> Color(0xFF1C1D22).copy(alpha = 0.7f)
+            else -> Color(0xFF1C1D22)
         }
     }
 
-    val cardBorder = remember(isNotDue, isOpenDue, accentColor, outline) {
+    val cardBorder = remember(isNotDue, isOpenDue) {
         when {
-            isNotDue -> outline.copy(alpha = 0.35f)
-            isOpenDue -> accentColor.copy(alpha = 0.45f)
-            else -> outline
+            isNotDue -> Color(0xFF282A33).copy(alpha = 0.4f)
+            isOpenDue -> Color(0xFF383A46)
+            else -> Color(0xFF282A33)
         }
     }
 
@@ -847,13 +650,13 @@ fun TaskRowItem(
                             .size(28.dp)
                             .clip(CircleShape)
                             .background(
-                                if (item.isCompleted) accentColor
+                                if (item.isCompleted) Color.White
                                 else MaterialTheme.colorScheme.surfaceVariant,
                                 CircleShape
                             )
                             .border(
                                 width = if (item.isCompleted) 0.dp else 1.5.dp,
-                                color = if (item.isCompleted) Color.Transparent else if (isOpenDue) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline,
+                                color = if (item.isCompleted) Color.Transparent else MaterialTheme.colorScheme.outline,
                                 shape = CircleShape
                             )
                             .then(if (isReadOnly) Modifier else Modifier.clickable(onClick = onToggleItem)),
@@ -863,7 +666,7 @@ fun TaskRowItem(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
-                                tint = if (accentColor == Color(0xFFF5F5F7)) Color.Black else Color.White,
+                                tint = Color.Black,
                                 modifier = Modifier.size(16.dp)
                             )
                         } else {
@@ -876,7 +679,7 @@ fun TaskRowItem(
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
-                                color = accentColor
+                                color = Color(0xFF94A3B8)
                             )
                         }
                     }
@@ -1128,8 +931,8 @@ fun CounterProgressSection(
                 stepOptions.forEach { step ->
                     Box(
                         modifier = Modifier
-                            .background(accentColor.copy(alpha = 0.12f), com.example.ui.components.ShapeBox8)
-                            .border(1.dp, accentColor.copy(alpha = 0.5f), com.example.ui.components.ShapeBox8)
+                            .background(Color(0xFF24252C), com.example.ui.components.ShapeBox8)
+                            .border(1.dp, Color(0xFF383A46), com.example.ui.components.ShapeBox8)
                             .clickable { onIncrement(taskId, step) }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
@@ -1139,7 +942,7 @@ fun CounterProgressSection(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             ),
-                            color = accentColor
+                            color = Color.White
                         )
                     }
                 }

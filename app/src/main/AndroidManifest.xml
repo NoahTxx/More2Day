@@ -43,6 +43,8 @@
             android:name=".ui.screens.LockOverlayActivity"
             android:exported="false"
             android:launchMode="singleTask"
+            android:taskAffinity="com.example.lockoverlay"
+            android:noHistory="true"
             android:excludeFromRecents="true"
             android:theme="@style/Theme.MyApplication" />
 

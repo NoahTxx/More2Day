@@ -735,7 +735,7 @@ fun TaskEditDialog(
                     checked = reminderEnabled,
                     onCheckedChange = { reminderEnabled = it },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = if (accentColor == Color(0xFFF5F5F7)) Color.Black else Color.White,
+                        checkedThumbColor = if (accentColor == Color(0xFFF8FAFC) || accentColor == Color(0xFFF5F5F7) || accentColor == Color.White) Color.Black else Color.White,
                         checkedTrackColor = accentColor,
                         uncheckedTrackColor = MaterialTheme.colorScheme.surface
                     )
@@ -846,10 +846,12 @@ fun TaskEditDialog(
                     enabled = title.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = accentColor,
-                        contentColor = if (accentColor == Color(0xFFF5F5F7)) Color.Black else Color.White,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                        containerColor = Color(0xFF2E313C),
+                        contentColor = Color.White,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = Color(0xFF64748B)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46))
                 ) {
                     Text(
                         text = if (task == null) t("save_task") else t("save_changes"),

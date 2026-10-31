@@ -37,6 +37,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.ImageView
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.viewinterop.AndroidView
+
 import com.example.util.AppStrings
 import com.example.util.LocalAccentColor
 import com.example.util.LocalAppLanguage
@@ -50,6 +57,104 @@ val ShapeCardMedium = RoundedCornerShape(16.dp)
 val ShapeCardSmall = RoundedCornerShape(12.dp)
 val ShapeBox8 = RoundedCornerShape(8.dp)
 val ShapeBox6 = RoundedCornerShape(6.dp)
+
+@Composable
+fun HabitsCapsuleIcon(
+    modifier: Modifier = Modifier,
+    width: Dp = 10.dp,
+    height: Dp = 22.dp
+) {
+    Box(
+        modifier = modifier
+            .width(width)
+            .height(height)
+            .graphicsLayer { rotationZ = -45f }
+            .clip(ShapePill)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFFFFFF),
+                        Color(0xFFFACC15),
+                        Color(0xFFF97316),
+                        Color(0xFFDC2626)
+                    )
+                )
+            )
+    )
+}
+
+@Composable
+fun HabitsCapsuleHero(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .width(26.dp)
+            .height(72.dp)
+            .graphicsLayer { rotationZ = -45f }
+            .clip(ShapePill)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFFFFFF),
+                        Color(0xFFFACC15),
+                        Color(0xFFF97316),
+                        Color(0xFFB91C1C)
+                    )
+                )
+            )
+    )
+}
+
+@Composable
+fun OverlappingAppIcons(
+    icons: List<android.graphics.drawable.Drawable?>,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 32.dp,
+    overlapOffset: Dp = 12.dp
+) {
+    val displayIcons = icons.take(3)
+    val totalWidth = if (displayIcons.isEmpty()) 0.dp else (iconSize + ((displayIcons.size - 1) * (iconSize.value - overlapOffset.value)).dp)
+    Box(
+        modifier = modifier
+            .width(totalWidth)
+            .height(iconSize)
+    ) {
+        displayIcons.forEachIndexed { index, drawable ->
+            Box(
+                modifier = Modifier
+                    .padding(start = (index * (iconSize.value - overlapOffset.value)).dp)
+                    .size(iconSize)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF24252C))
+                    .border(1.5.dp, Color(0xFF1C1D22), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (drawable != null) {
+                    AndroidView(
+                        factory = { ctx ->
+                            ImageView(ctx).apply {
+                                scaleType = ImageView.ScaleType.FIT_CENTER
+                                setImageDrawable(drawable)
+                            }
+                        },
+                        update = { view ->
+                            view.setImageDrawable(drawable)
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.Apps,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun NothingCard(
@@ -88,7 +193,6 @@ fun NothingCheckbox(
     enabled: Boolean = true,
     testTag: String = "habit_checkbox"
 ) {
-    val accentColor = LocalAccentColor.current
     val outlineColor = MaterialTheme.colorScheme.outline
     val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
 
@@ -106,7 +210,7 @@ fun NothingCheckbox(
             .testTag(testTag)
             .clip(CircleShape)
             .background(
-                if (checked) accentColor else surfaceColor.copy(alpha = 0.5f),
+                if (checked) Color.White else surfaceColor.copy(alpha = 0.5f),
                 CircleShape
             )
             .border(
@@ -118,11 +222,10 @@ fun NothingCheckbox(
         contentAlignment = Alignment.Center
     ) {
         if (checked) {
-            val checkColor = if (accentColor == Color(0xFFF5F5F7) || accentColor == Color(0xFFF8FAFC)) Color.Black else Color.White
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = "Completed",
-                tint = checkColor,
+                tint = Color.Black,
                 modifier = Modifier.size(size * 0.62f)
             )
         }
@@ -332,7 +435,8 @@ fun NotificationPermissionCard(
             Box(
                 modifier = Modifier
                     .clip(ShapePill)
-                    .background(accentColor)
+                    .background(Color(0xFF24252C))
+                    .border(1.dp, Color(0xFF383A46), ShapePill)
                     .clickable(onClick = onGrantClick)
                     .padding(horizontal = 14.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center

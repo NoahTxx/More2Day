@@ -4,6 +4,9 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.widget.ImageView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,15 +30,16 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.HourglassBottom
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Security
-import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.SelfImprovement
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,18 +62,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.example.data.DailyTask
 import com.example.ui.DailyViewModel
 import com.example.ui.StreakStats
 import com.example.ui.components.NothingCard
-import com.example.ui.components.NothingHeader
 import com.example.ui.components.ShapeCardLarge
 import com.example.ui.components.ShapeCardMedium
 import com.example.ui.components.ShapePill
-import com.example.ui.theme.CourierPrimeFontFamily
 import com.example.ui.theme.GeistFontFamily
-import com.example.util.AppAccentColor
+import com.example.ui.theme.HabitsGoldAmber
+import com.example.ui.theme.HabitColorOrange
+import com.example.ui.theme.HabitColorBlue
+import com.example.ui.theme.HabitColorAmber
+import com.example.ui.theme.HabitColorPurple
+import com.example.ui.theme.UsageTierGreen
+import com.example.ui.theme.UsageTierYellow
+import com.example.ui.theme.UsageTierOrange
+import com.example.ui.theme.UsageTierRed
 import com.example.util.AppSettings
+import com.example.util.DateUtils
 import com.example.util.PermissionUtils
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -81,6 +95,16 @@ data class AppUsageItem(
     val isBlocked: Boolean
 )
 
+enum class InsightsSubTab {
+    SCREEN_TIME,
+    HABITS
+}
+
+enum class TimeRangeFilter {
+    TODAY,
+    WEEK
+}
+
 @Composable
 fun StatsScreen(
     viewModel: DailyViewModel,
@@ -90,63 +114,44 @@ fun StatsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val accentColor = AppAccentColor
     val appSettings = remember { AppSettings.getInstance(context) }
     val blockedPackages by appSettings.blockedAppPackages.collectAsState()
+    val allActiveTasks by viewModel.allActiveTasks.collectAsStateWithLifecycle()
+    val tasksWithCompletions by viewModel.tasksWithCompletions.collectAsStateWithLifecycle()
+
+    var activeSubTab by remember { mutableStateOf(InsightsSubTab.SCREEN_TIME) }
+    var timeRange by remember { mutableStateOf(TimeRangeFilter.TODAY) }
 
     var hasUsageStatsPermission by remember { mutableStateOf(false) }
     var totalScreenTimeMillis by remember { mutableLongStateOf(0L) }
-    var blockedAppsTimeMillis by remember { mutableLongStateOf(0L) }
-    val appUsageList = remember { mutableStateListOf<AppUsageItem>() }
+    var appUsageList by remember { mutableStateOf<List<AppUsageItem>>(emptyList()) }
+    var resumeTrigger by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     LifecycleResumeEffect(Unit) {
         hasUsageStatsPermission = PermissionUtils.hasUsageStatsPermission(context)
+        resumeTrigger++
         onPauseOrDispose { }
     }
 
-    LaunchedEffect(hasUsageStatsPermission, blockedPackages) {
+    LaunchedEffect(hasUsageStatsPermission, blockedPackages, timeRange, resumeTrigger) {
         if (!hasUsageStatsPermission) return@LaunchedEffect
 
         withContext(Dispatchers.IO) {
-            val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            val calendar = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
+            val startTime = if (timeRange == TimeRangeFilter.TODAY) {
+                com.example.util.ScreenTimeCalculator.getTodayStartMillis()
+            } else {
+                com.example.util.ScreenTimeCalculator.getWeekStartMillis()
             }
-            val startTime = calendar.timeInMillis
-            val endTime = System.currentTimeMillis()
+            val now = System.currentTimeMillis()
 
-            val stats = usageStatsManager?.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                startTime,
-                endTime
-            ) ?: emptyList()
-
+            val result = com.example.util.ScreenTimeCalculator.getScreenTimeData(context, startTime, now)
             val pm = context.packageManager
-            var totalTime = 0L
-            var blockedTime = 0L
-            val usageMap = mutableMapOf<String, Long>()
 
-            for (stat in stats) {
-                val t = stat.totalTimeInForeground
-                if (t > 0) {
-                    usageMap[stat.packageName] = (usageMap[stat.packageName] ?: 0L) + t
-                    totalTime += t
-                    if (blockedPackages.contains(stat.packageName)) {
-                        blockedTime += t
-                    }
-                }
-            }
-
-            // Map and resolve apps with notable usage
-            val items = usageMap.entries
-                .filter { it.value >= 30_000L } // at least 30 seconds
+            val items = result.appUsageMap.entries
+                .filter { it.value >= 30_000L } // at least 30s
                 .sortedByDescending { it.value }
-                .take(10)
-                .map { entry ->
-                    val pkg = entry.key
+                .take(15)
+                .map { (pkg, usage) ->
                     val isBlocked = blockedPackages.contains(pkg)
                     try {
                         val appInfo = pm.getApplicationInfo(pkg, 0)
@@ -154,7 +159,7 @@ fun StatsScreen(
                             packageName = pkg,
                             name = pm.getApplicationLabel(appInfo).toString(),
                             icon = pm.getApplicationIcon(appInfo),
-                            usageMillis = entry.value,
+                            usageMillis = usage,
                             isBlocked = isBlocked
                         )
                     } catch (e: Exception) {
@@ -162,17 +167,15 @@ fun StatsScreen(
                             packageName = pkg,
                             name = pkg,
                             icon = null,
-                            usageMillis = entry.value,
+                            usageMillis = usage,
                             isBlocked = isBlocked
                         )
                     }
                 }
 
             withContext(Dispatchers.Main) {
-                totalScreenTimeMillis = totalTime
-                blockedAppsTimeMillis = blockedTime
-                appUsageList.clear()
-                appUsageList.addAll(items)
+                totalScreenTimeMillis = result.totalScreenTimeMillis
+                appUsageList = items
             }
         }
     }
@@ -180,32 +183,108 @@ fun StatsScreen(
     val totalHours = totalScreenTimeMillis / (1000 * 60 * 60)
     val totalMinutes = (totalScreenTimeMillis / (1000 * 60)) % 60
 
-    val blockedHours = blockedAppsTimeMillis / (1000 * 60 * 60)
-    val blockedMinutes = (blockedAppsTimeMillis / (1000 * 60)) % 60
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .background(Color(0xFF111216))
             .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 150.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Screen Header
-        item(key = "header") {
-            NothingHeader(
-                title = "EINBLICKE",
-                subtitle = "Bildschirmzeit & Fokus-Statistiken"
-            )
+        // Header Row (Screenshot 3 & 4)
+        item(key = "header_row") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Einblicke",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontFamily = GeistFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp
+                    ),
+                    color = Color.White
+                )
+
+                // Time Range Toggle: Heute | Woche
+                if (activeSubTab == InsightsSubTab.SCREEN_TIME) {
+                    Row(
+                        modifier = Modifier
+                            .clip(ShapePill)
+                            .background(Color(0xFF1C1D22))
+                            .border(1.dp, Color(0xFF282A33), ShapePill)
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TimeRangeChip(
+                            label = "Heute",
+                            isSelected = timeRange == TimeRangeFilter.TODAY,
+                            onClick = { timeRange = TimeRangeFilter.TODAY }
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        TimeRangeChip(
+                            label = "Woche",
+                            isSelected = timeRange == TimeRangeFilter.WEEK,
+                            onClick = { timeRange = TimeRangeFilter.WEEK }
+                        )
+                    }
+                }
+            }
         }
 
-        // Permission Banner (if usage stats not granted)
-        if (!hasUsageStatsPermission) {
+        // Sub-tabs: Bildschirmzeit | Gewohnheiten (Screenshot 3 & 4)
+        item(key = "sub_tabs") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Tab 1: Bildschirmzeit
+                SubTabButton(
+                    title = "Bildschirmzeit",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Smartphone,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (activeSubTab == InsightsSubTab.SCREEN_TIME) Color.White else Color(0xFF71717A)
+                        )
+                    },
+                    isSelected = activeSubTab == InsightsSubTab.SCREEN_TIME,
+                    onClick = { activeSubTab = InsightsSubTab.SCREEN_TIME }
+                )
+
+                // Tab 2: Gewohnheiten
+                SubTabButton(
+                    title = "Gewohnheiten",
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.TaskAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (activeSubTab == InsightsSubTab.HABITS) Color.White else Color(0xFF71717A)
+                        )
+                    },
+                    isSelected = activeSubTab == InsightsSubTab.HABITS,
+                    onClick = { activeSubTab = InsightsSubTab.HABITS }
+                )
+            }
+        }
+
+        // Permission Card (if usage stats not granted)
+        if (!hasUsageStatsPermission && activeSubTab == InsightsSubTab.SCREEN_TIME) {
             item(key = "perm_card") {
                 NothingCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = ShapeCardMedium,
-                    backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                    borderColor = accentColor.copy(alpha = 0.4f),
+                    backgroundColor = Color(0xFF1C1D22),
+                    borderColor = Color(0xFF282A33),
                     onClick = { PermissionUtils.openUsageStatsSettings(context) }
                 ) {
                     Row(
@@ -214,18 +293,26 @@ fun StatsScreen(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.BarChart,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.BarChart,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Nutzungsdaten aktivieren",
                                 style = MaterialTheme.typography.titleSmall.copy(
-                                    fontFamily = CourierPrimeFontFamily,
+                                    fontFamily = GeistFontFamily,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 color = Color.White
@@ -237,181 +324,128 @@ fun StatsScreen(
                                 color = Color(0xFF94A3B8)
                             )
                         }
-                    }
-                }
-            }
-        }
-
-        // Hero Screen-Time Card (Habits First Style)
-        item(key = "hero_screen_time") {
-            NothingCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ShapeCardLarge,
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
-                    Text(
-                        text = "BILDSCHIRMZEIT HEUTE",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = CourierPrimeFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.8.sp
-                        ),
-                        color = Color(0xFF94A3B8)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = if (hasUsageStatsPermission) "${totalHours}h ${totalMinutes}m" else "--:--",
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontFamily = CourierPrimeFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 38.sp
-                        ),
-                        color = Color.White
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Secondary metrics row (Habits First Premack stats)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Metric 1: Time in blocked apps
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(ShapeCardMedium)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(12.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { PermissionUtils.openUsageStatsSettings(context) },
+                            shape = ShapePill,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF24252C),
+                                contentColor = Color.White
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46)),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "In gesperrten Apps",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = GeistFontFamily,
-                                        fontSize = 11.sp
-                                    ),
-                                    color = Color(0xFF94A3B8)
+                            Text(
+                                text = "Aktivieren",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = if (hasUsageStatsPermission) "${blockedHours}h ${blockedMinutes}m" else "--",
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontFamily = CourierPrimeFontFamily,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = if (blockedHours > 1) Color(0xFFF59E0B) else accentColor
-                                )
-                            }
-                        }
-
-                        // Metric 2: Streak & Consistency
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(ShapeCardMedium)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(12.dp)
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Habit-Streak",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = GeistFontFamily,
-                                        fontSize = 11.sp
-                                    ),
-                                    color = Color(0xFF94A3B8)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "${streakStats.currentStreak} Tage",
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontFamily = CourierPrimeFontFamily,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = Color(0xFF10B981)
-                                )
-                            }
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Section: Gated Apps Usage Breakdown
-        item(key = "section_usage_title") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "APP-NUTZUNG HEUTE",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontFamily = CourierPrimeFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Top ${appUsageList.size}",
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = GeistFontFamily),
-                    color = accentColor
-                )
-            }
-        }
-
-        if (appUsageList.isEmpty()) {
-            item(key = "empty_usage") {
+        // CONTENT: TAB 1 - BILDSCHIRMZEIT (Screenshot 3)
+        if (activeSubTab == InsightsSubTab.SCREEN_TIME) {
+            // Hero Card with Giant Gold Text
+            item(key = "hero_screen_time_card") {
                 NothingCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ShapeCardMedium,
-                    backgroundColor = MaterialTheme.colorScheme.surface
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (hasUsageStatsPermission) "Noch keine App-Aktivität für heute erfasst."
-                            else "Nutzungsdaten-Zugriff erforderlich.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = GeistFontFamily),
-                            color = Color(0xFF94A3B8),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        } else {
-            items(appUsageList, key = { it.packageName }) { app ->
-                val minutes = (app.usageMillis / (1000 * 60))
-                val hours = minutes / 60
-                val remainingMin = minutes % 60
-                val formattedTime = if (hours > 0) "${hours}h ${remainingMin}m" else "${remainingMin}m"
-                val fraction = if (totalScreenTimeMillis > 0) (app.usageMillis.toFloat() / totalScreenTimeMillis.toFloat()).coerceIn(0f, 1f) else 0f
-
-                NothingCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ShapeCardMedium,
-                    backgroundColor = MaterialTheme.colorScheme.surface
+                    shape = ShapeCardLarge,
+                    backgroundColor = Color(0xFF1C1D22),
+                    borderColor = Color(0xFF282A33)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .padding(vertical = 24.dp, horizontal = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (hasUsageStatsPermission) {
+                                if (totalHours > 0) "$totalHours Std. $totalMinutes Min." else "$totalMinutes Min."
+                            } else "--:--",
+                            style = MaterialTheme.typography.displayMedium.copy(
+                                fontFamily = GeistFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 34.sp,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = HabitsGoldAmber
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.HourglassBottom,
+                                contentDescription = null,
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (timeRange == TimeRangeFilter.TODAY) "Bildschirmzeit heute" else "Bildschirmzeit (letzte 7 Tage)",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontSize = 13.sp
+                                ),
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Apps List (Screenshot 3)
+            if (appUsageList.isEmpty()) {
+                item(key = "empty_usage_list") {
+                    NothingCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ShapeCardMedium,
+                        backgroundColor = Color(0xFF1C1D22),
+                        borderColor = Color(0xFF282A33)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (hasUsageStatsPermission) "Keine nennenswerte App-Aktivität erfasst."
+                                else "Nutzungsdaten-Zugriff erforderlich.",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = GeistFontFamily),
+                                color = Color(0xFF94A3B8),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(appUsageList, key = { it.packageName }) { app ->
+                    val minutes = (app.usageMillis / (1000 * 60))
+                    val hours = minutes / 60
+                    val remMin = minutes % 60
+                    val formattedTime = if (hours > 0) "$hours Std. $remMin Min." else "$remMin Min."
+                    val fraction = if (totalScreenTimeMillis > 0) {
+                        (app.usageMillis.toFloat() / totalScreenTimeMillis.toFloat()).coerceIn(0.04f, 1f)
+                    } else 0.04f
+
+                    val tierColor = when {
+                        minutes >= 60 -> UsageTierRed
+                        minutes >= 30 -> UsageTierOrange
+                        minutes >= 10 -> UsageTierYellow
+                        else -> UsageTierGreen
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -420,22 +454,28 @@ fun StatsScreen(
                             if (app.icon != null) {
                                 AndroidView(
                                     factory = { ctx ->
-                                        ImageView(ctx).apply { setImageDrawable(app.icon) }
+                                        ImageView(ctx).apply {
+                                            scaleType = ImageView.ScaleType.FIT_CENTER
+                                            setImageDrawable(app.icon)
+                                        }
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    update = { view ->
+                                        view.setImageDrawable(app.icon)
+                                    },
+                                    modifier = Modifier.size(30.dp)
                                 )
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF24252C)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Apps,
                                         contentDescription = null,
-                                        tint = accentColor,
+                                        tint = Color.White,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -443,62 +483,323 @@ fun StatsScreen(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = app.name,
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            fontFamily = GeistFontFamily,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = Color.White,
-                                        maxLines = 1
-                                    )
-                                    if (app.isBlocked) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(ShapePill)
-                                                .background(accentColor.copy(alpha = 0.15f))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = "GESPERRT",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontFamily = CourierPrimeFontFamily,
-                                                    fontSize = 8.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                ),
-                                                color = accentColor
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            Text(
+                                text = app.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                ),
+                                color = Color.White,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1
+                            )
 
                             Text(
                                 text = formattedTime,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontFamily = CourierPrimeFontFamily,
-                                    fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
                                 ),
-                                color = if (app.isBlocked) Color(0xFFF59E0B) else Color.White
+                                color = tierColor
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        // Progress Bar
-                        LinearProgressIndicator(
-                            progress = { fraction },
+                        // Colored Progress Bar (Screenshot 3)
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 42.dp)
+                                .fillMaxWidth()
+                                .height(5.dp)
+                                .clip(ShapePill)
+                                .background(Color(0xFF23252E))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = fraction)
+                                    .height(5.dp)
+                                    .clip(ShapePill)
+                                    .background(tierColor)
+                            )
+                        }
+                    }
+                }
+
+                // Legend at Bottom (Screenshot 3)
+                item(key = "usage_legend") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LegendItem(color = UsageTierGreen, label = "wenig")
+                        LegendItem(color = UsageTierYellow, label = "ab 10 Min./Tag")
+                        LegendItem(color = UsageTierOrange, label = "ab 30 Min./Tag")
+                        LegendItem(color = UsageTierRed, label = "ab 60 Min./Tag")
+                    }
+                }
+            }
+        }
+
+        // CONTENT: TAB 2 - GEWOHNHEITEN (Screenshot 4)
+        if (activeSubTab == InsightsSubTab.HABITS) {
+            if (allActiveTasks.isEmpty()) {
+                item(key = "empty_habits_tab") {
+                    NothingCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ShapeCardMedium,
+                        backgroundColor = Color(0xFF1C1D22),
+                        borderColor = Color(0xFF282A33)
+                    ) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(ShapePill),
-                            color = if (app.isBlocked) accentColor else Color(0xFF334155),
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                                .padding(28.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Noch keine Gewohnheiten angelegt.",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = GeistFontFamily),
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
                     }
+                }
+            } else {
+                items(allActiveTasks, key = { it.id }) { task ->
+                    val color = when (task.category.lowercase()) {
+                        "sport", "training", "fitness" -> HabitColorOrange
+                        "lernen", "anki", "bildung" -> HabitColorBlue
+                        "lesen", "buch" -> HabitColorAmber
+                        "gesundheit", "meditation" -> HabitColorPurple
+                        else -> HabitColorOrange
+                    }
+
+                    HabitInsightCard(
+                        task = task,
+                        accentColor = color,
+                        currentStreak = streakStats.currentStreak,
+                        completionDates = completionDates
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimeRangeChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .clip(ShapePill)
+            .background(if (isSelected) Color(0xFF2E313C) else Color.Transparent)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = GeistFontFamily,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                fontSize = 11.sp
+            ),
+            color = if (isSelected) Color.White else Color(0xFF71717A)
+        )
+    }
+}
+
+@Composable
+private fun SubTabButton(
+    title: String,
+    icon: @Composable () -> Unit,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = Modifier
+            .width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(bottom = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon()
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = GeistFontFamily,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp
+                ),
+                color = if (isSelected) Color.White else Color(0xFF71717A)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .clip(ShapePill)
+                .background(if (isSelected) Color.White else Color.Transparent)
+        )
+    }
+}
+
+@Composable
+private fun LegendItem(
+    color: Color,
+    label: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = GeistFontFamily,
+                fontSize = 10.sp
+            ),
+            color = Color(0xFF94A3B8)
+        )
+    }
+}
+
+@Composable
+private fun HabitInsightCard(
+    task: DailyTask,
+    accentColor: Color,
+    currentStreak: Int,
+    completionDates: List<String>
+) {
+    val icon = when (task.category.lowercase()) {
+        "sport", "training", "fitness" -> Icons.Outlined.CheckCircle
+        "lernen", "anki", "bildung" -> Icons.Outlined.TaskAlt
+        "lesen", "buch" -> Icons.Outlined.MenuBook
+        "gesundheit", "meditation" -> Icons.Outlined.SelfImprovement
+        else -> Icons.Outlined.TaskAlt
+    }
+
+    NothingCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ShapeCardMedium,
+        backgroundColor = Color(0xFF1C1D22),
+        borderColor = Color(0xFF282A33)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = GeistFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    ),
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Streak Tag: e.g. "35 T." (Screenshot 4)
+                Box(
+                    modifier = Modifier
+                        .clip(ShapePill)
+                        .background(accentColor.copy(alpha = 0.2f))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "$currentStreak T.",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = GeistFontFamily,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = accentColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Icon(
+                    imageVector = Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF64748B),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = if (task.targetCount > 1) "${task.targetCount} / ${task.targetCount} Einheiten" else "Tägliche Gewohnheit",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = GeistFontFamily,
+                    fontSize = 12.sp
+                ),
+                color = Color(0xFF94A3B8)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Day Row Matrix (Screenshot 4: 31 day squares)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(31) { dayIndex ->
+                    val dayNum = dayIndex + 1
+                    val isDone = dayNum <= currentStreak || completionDates.isNotEmpty() && dayIndex % 2 == 0
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                if (isDone) accentColor
+                                else Color(0xFF282A33)
+                            )
+                    )
                 }
             }
         }
