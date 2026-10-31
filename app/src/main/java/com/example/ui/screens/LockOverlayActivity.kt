@@ -53,10 +53,13 @@ import androidx.compose.ui.unit.sp
 import com.example.MainActivity
 import com.example.data.DailyDatabase
 import com.example.data.DailyTask
+import com.example.ui.components.More2DayLogoTile
 import com.example.ui.components.NothingCard
 import com.example.ui.components.ShapeCardLarge
 import com.example.ui.components.ShapeCardMedium
 import com.example.ui.components.ShapePill
+import com.example.ui.theme.BrandBlack
+import com.example.ui.theme.BrandOrange
 import com.example.ui.theme.GeistFontFamily
 import com.example.ui.theme.MyApplicationTheme
 import com.example.util.DateUtils
@@ -170,21 +173,28 @@ fun LockOverlayContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Lock Icon Badge
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1C1D22))
-                    .border(1.5.dp, Color(0xFF282A33), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Lock,
-                    contentDescription = "Gesperrt",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
+            // More2Day Logo with small "locked" badge
+            Box(modifier = Modifier.size(100.dp)) {
+                More2DayLogoTile(
+                    size = 88.dp,
+                    modifier = Modifier.align(Alignment.Center)
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(BrandOrange)
+                        .border(3.dp, Color(0xFF111216), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Lock,
+                        contentDescription = "Gesperrt",
+                        tint = BrandBlack,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -240,7 +250,7 @@ fun LockOverlayContent(
                             Icon(
                                 imageVector = Icons.Outlined.CheckCircle,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = BrandOrange,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -273,7 +283,7 @@ fun LockOverlayContent(
                                         modifier = Modifier
                                             .size(6.dp)
                                             .clip(CircleShape)
-                                            .background(Color.White)
+                                            .background(BrandOrange)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
@@ -344,14 +354,14 @@ fun LockOverlayContent(
                     shape = ShapePill,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent,
-                        contentColor = Color(0xFF94A3B8)
+                        contentColor = BrandOrange
                     )
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Outlined.OpenInNew,
                             contentDescription = null,
-                            tint = Color(0xFF94A3B8),
+                            tint = BrandOrange,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))

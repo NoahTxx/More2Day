@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- More2Day logo mark (transparent background) for in-app usage -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="60"
+    android:viewportHeight="60">
+
+    <group
+        android:translateX="-35"
+        android:translateY="-38">
+        <path
+            android:pathData="M42,90 V46 L65,72 L88,46 V90"
+            android:strokeColor="@color/brand_white"
+            android:strokeWidth="9"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="@color/brand_orange"
+            android:pathData="M65,52 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+    </group>
+</vector>

@@ -1,41 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- More2Day logo: white "M" with orange sun dot (adaptive icon foreground, 108dp canvas, safe zone 66dp) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Outer subtle focus ring -->
-    <path
-        android:strokeColor="#242838"
-        android:strokeWidth="2.5"
-        android:pathData="M 54,18 A 36,36 0 1,1 53.99,18" />
-
-    <!-- Active habit progress arc -->
-    <path
-        android:strokeColor="#6366F1"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:pathData="M 54,18 A 36,36 0 0,1 90,54" />
-
-    <!-- Modern Lock Shackle -->
-    <path
-        android:strokeColor="#F3F4F6"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M 44,46 L 44,38 A 10,10 0 0,1 64,38 L 64,46" />
-
-    <!-- Modern Lock Body (Smooth Rounded Card) -->
-    <path
-        android:fillColor="#181B26"
-        android:strokeColor="#6366F1"
-        android:strokeWidth="2.5"
-        android:pathData="M 37,46 H 71 A 6,6 0 0,1 77,52 V 72 A 6,6 0 0,1 71,78 H 37 A 6,6 0 0,1 31,72 V 52 A 6,6 0 0,1 37,46 Z" />
-
-    <!-- Clean Checkmark inside Lock Body -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M 46,62 L 52,68 L 63,55" />
+    <group
+        android:translateX="54"
+        android:translateY="54"
+        android:scaleX="0.7"
+        android:scaleY="0.7">
+        <group
+            android:translateX="-65"
+            android:translateY="-68">
+            <path
+                android:pathData="M42,90 V46 L65,72 L88,46 V90"
+                android:strokeColor="@color/brand_white"
+                android:strokeWidth="9"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round" />
+            <path
+                android:fillColor="@color/brand_orange"
+                android:pathData="M65,52 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+        </group>
+    </group>
 </vector>

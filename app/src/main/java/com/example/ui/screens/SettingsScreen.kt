@@ -510,12 +510,7 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    com.example.ui.components.More2DayLogoTile(size = 40.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(

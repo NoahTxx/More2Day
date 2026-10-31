@@ -265,6 +265,7 @@ fun TodayScreen(
                             color = Color(0xFF94A3B8)
                         )
                     }
+                    com.example.ui.components.More2DayLogoTile(size = 40.dp)
                 }
             }
 

@@ -4,20 +4,21 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.example.ui.theme.BrandOrange
 import com.example.ui.theme.GeistFontFamily
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-// Fixed modern design tokens (Clean Monochrome)
-val AppAccentColor = Color.White
+// Fixed design tokens: monochrome base + More2Day brand orange (from logo) as accent
+val AppAccentColor = BrandOrange
 val LocalAccentColor = compositionLocalOf { AppAccentColor }
 val LocalHeadingFontFamily = compositionLocalOf { GeistFontFamily }
 val LocalBodyFontFamily = compositionLocalOf { GeistFontFamily }
 
 enum class AccentColor(val key: String, val displayName: String, val color: Color) {
-    MONOCHROME("MONOCHROME", "Monochrome", Color.White),
-    INDIGO("INDIGO", "Monochrome", Color.White)
+    MONOCHROME("MONOCHROME", "More2Day", BrandOrange),
+    INDIGO("INDIGO", "More2Day", BrandOrange)
 }
 
 enum class AppLanguage(val key: String, val displayName: String) {

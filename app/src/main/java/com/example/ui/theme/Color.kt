@@ -3,6 +3,15 @@ package com.example.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ============================================================================
+// More2Day Brand (from app logo: white "M" + orange sun dot on black)
+// ============================================================================
+val BrandBlack = Color(0xFF000000)
+val BrandWhite = Color(0xFFFFFFFF)
+val BrandOrange = Color(0xFFF97316)
+val BrandOrangeSoft = Color(0x26F97316) // 15% – container/badge backgrounds
+val BrandOrangeBorder = Color(0x59F97316) // 35% – subtle outlines
+
+// ============================================================================
 // Modern Neutral Palette (Clean, Minimal & Sophisticated Monochrome)
 // ============================================================================
 
