@@ -9,13 +9,19 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [DailyTask::class, TaskCompletion::class],
-    version = 6,
+    entities = [
+        DailyTask::class,
+        TaskCompletion::class,
+        ReconstructedUsageSessionEntity::class,
+        UsageImportCheckpointEntity::class
+    ],
+    version = 7,
     exportSchema = false
 )
 abstract class DailyDatabase : RoomDatabase() {
 
     abstract fun dailyTaskDao(): DailyTaskDao
+    abstract fun usageTrackingDao(): UsageTrackingDao
 
     companion object {
         private const val TAG = "DailyDatabase"
@@ -61,6 +67,54 @@ abstract class DailyDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `reconstructed_usage_sessions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `dateKey` TEXT NOT NULL,
+                        `sessionType` TEXT NOT NULL,
+                        `packageName` TEXT NOT NULL,
+                        `className` TEXT NOT NULL,
+                        `startEpochMs` INTEGER NOT NULL,
+                        `endEpochMs` INTEGER NOT NULL,
+                        `durationMs` INTEGER NOT NULL,
+                        `zoneId` TEXT NOT NULL,
+                        `measurementStatus` TEXT NOT NULL,
+                        `algorithmVersion` INTEGER NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_reconstructed_usage_sessions_dateKey_sessionType` ON `reconstructed_usage_sessions` (`dateKey`, `sessionType`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_reconstructed_usage_sessions_start_end` ON `reconstructed_usage_sessions` (`startEpochMs`, `endEpochMs`)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_reconstructed_usage_sessions_unique_interval` ON `reconstructed_usage_sessions` (`sessionType`, `packageName`, `startEpochMs`, `endEpochMs`)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `usage_import_checkpoints` (
+                        `checkpointKey` TEXT NOT NULL,
+                        `timestampMs` INTEGER NOT NULL,
+                        `screenInteractive` INTEGER,
+                        `keyguardShowing` INTEGER,
+                        `activeForegroundPackage` TEXT,
+                        `activeForegroundClass` TEXT,
+                        `zoneId` TEXT NOT NULL,
+                        `algorithmVersion` INTEGER NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`checkpointKey`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         private fun buildDatabase(context: Context): DailyDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
@@ -70,7 +124,8 @@ abstract class DailyDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_2_3,
                     MIGRATION_3_4,
-                    MIGRATION_4_6
+                    MIGRATION_4_6,
+                    MIGRATION_6_7
                 )
                 .fallbackToDestructiveMigration()
                 .build()

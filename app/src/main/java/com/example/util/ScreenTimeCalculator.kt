@@ -1,157 +1,120 @@
 package com.example.util
 
-import android.app.usage.UsageStats
-import android.app.usage.UsageStatsManager
 import android.content.Context
-import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.view.inputmethod.InputMethodManager
-import java.util.Calendar
+import com.example.data.DailyDatabase
+import com.example.usage.engine.UsageWindowBounds
+import com.example.usage.model.MeasurementStatus
+import com.example.usage.model.UsageDiagnosticsReport
+import com.example.usage.repository.UsageTrackingRepository
+import com.example.usage.source.AndroidUsageEventSource
+import java.time.ZoneId
 
+/**
+ * Result of screen time evaluation for a target window `[startTime, endTime)`.
+ *
+ * @param totalScreenTimeMillis Primary metric: sum of qualified foreground usage across trackable apps (in ms).
+ * @param appUsageMap Per-package qualified foreground duration in ms (unrounded).
+ * @param unlockedDeviceTimeMillis Reconstructed unlocked interactive device duration in ms (`SCREEN_INTERACTIVE && !KEYGUARD_SHOWN`).
+ * @param interactiveDeviceTimeMillis Reconstructed interactive device duration in ms (including lockscreen interaction).
+ * @param hourlyAppForegroundMs Distribution of qualified app foreground time across local hours `0..23`.
+ * @param status Explicit measurement status (`VALID_USAGE`, `VALID_ZERO`, `PERMISSION_MISSING`, `TEMPORARILY_UNAVAILABLE`, `HISTORY_INCOMPLETE`).
+ * @param diagnostics Optional diagnostic report containing raw event counts, reconstructed intervals, and exclusions.
+ */
 data class ScreenTimeResult(
     val totalScreenTimeMillis: Long,
-    val appUsageMap: Map<String, Long> // packageName -> usageMillis
+    val appUsageMap: Map<String, Long>,
+    val unlockedDeviceTimeMillis: Long = totalScreenTimeMillis,
+    val interactiveDeviceTimeMillis: Long = unlockedDeviceTimeMillis,
+    val hourlyAppForegroundMs: Map<Int, Long> = emptyMap(),
+    val status: MeasurementStatus = if (totalScreenTimeMillis > 0L) MeasurementStatus.VALID_USAGE else MeasurementStatus.VALID_ZERO,
+    val diagnostics: UsageDiagnosticsReport? = null
 )
 
 object ScreenTimeCalculator {
 
-    private val EXCLUDED_PACKAGES = setOf(
-        "com.android.systemui",
-        "com.google.android.apps.nexuslauncher",
-        "com.android.launcher",
-        "com.android.launcher3",
-        "com.nothing.launcher",
-        "com.sec.android.app.launcher",
-        "com.miui.home",
-        "com.huawei.android.launcher",
-        "com.oppo.launcher",
-        "com.oneplus.launcher"
-    )
-
-    fun getTodayStartMillis(): Long {
-        return Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    fun getTodayStartMillis(
+        nowMs: Long = System.currentTimeMillis(),
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): Long {
+        return UsageWindowBounds.getTodayWindowUntilNow(nowMs, zoneId).startEpochMs
     }
 
-    fun getWeekStartMillis(): Long {
-        return Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -6)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    fun getWeekStartMillis(
+        nowMs: Long = System.currentTimeMillis(),
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): Long {
+        return UsageWindowBounds.getRollingWeekWindowUntilNow(nowMs, zoneId).startEpochMs
     }
 
+    /**
+     * Evaluates screen time in the half-open interval `[startTime, endTime)` using deterministic
+     * event reconstruction (`UsageStatsManager.queryEvents`) and idempotent Room persistence.
+     */
     fun getScreenTimeData(
         context: Context,
         startTime: Long,
-        endTime: Long = System.currentTimeMillis()
+        endTime: Long = System.currentTimeMillis(),
+        zoneId: ZoneId = ZoneId.systemDefault()
     ): ScreenTimeResult {
         if (!PermissionUtils.hasUsageStatsPermission(context)) {
-            return ScreenTimeResult(0L, emptyMap())
+            return ScreenTimeResult(
+                totalScreenTimeMillis = 0L,
+                appUsageMap = emptyMap(),
+                unlockedDeviceTimeMillis = 0L,
+                interactiveDeviceTimeMillis = 0L,
+                hourlyAppForegroundMs = emptyMap(),
+                status = MeasurementStatus.PERMISSION_MISSING,
+                diagnostics = null
+            )
         }
 
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return ScreenTimeResult(0L, emptyMap())
+        val db = DailyDatabase.getInstance(context)
+        val repository = UsageTrackingRepository(
+            usageTrackingDao = db.usageTrackingDao(),
+            eventSource = AndroidUsageEventSource(context.applicationContext)
+        )
 
-        val pm = context.packageManager
-        val ourPkg = context.packageName
-
-        // Resolve default home launcher
-        val homeIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
-        val defaultLauncher = try {
-            pm.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
-        } catch (e: Exception) {
-            null
-        }
-
-        // Identify installed keyboards/IMEs to exclude them from user app screen time
-        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        val imePackages = try {
-            imm?.inputMethodList?.map { it.packageName }?.toSet() ?: emptySet()
-        } catch (e: Exception) {
-            emptySet()
-        }
-
-        // 1. Query aggregated stats (built-in Android method matching system settings)
-        val aggregatedMap = try {
-            usageStatsManager.queryAndAggregateUsageStats(startTime, endTime)
-        } catch (e: Exception) {
-            emptyMap<String, UsageStats>()
-        }
-
-        // 2. Query daily interval buckets
-        val dailyStatsList = try {
-            usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-        } catch (e: Exception) {
-            emptyList<UsageStats>()
-        }
-
-        // Sum daily interval buckets that were active within the queried window
-        val dailySumMap = mutableMapOf<String, Long>()
-        for (stat in dailyStatsList) {
-            if (stat.lastTimeStamp < startTime) continue
-            val pkg = stat.packageName ?: continue
-            val foreground = stat.totalTimeInForeground
-            if (foreground > 0) {
-                dailySumMap[pkg] = (dailySumMap[pkg] ?: 0L) + foreground
-            }
-        }
-
-        // Combine all candidate packages from both queries
-        val candidatePackages = aggregatedMap.keys + dailySumMap.keys
-        val finalAppUsageMap = mutableMapOf<String, Long>()
-
-        for (pkg in candidatePackages) {
-            if (!isValidTrackableApp(pm, pkg, ourPkg, defaultLauncher, imePackages)) {
-                continue
-            }
-
-            val fromAggregated = aggregatedMap[pkg]?.totalTimeInForeground ?: 0L
-            val fromDaily = dailySumMap[pkg] ?: 0L
-            val bestDuration = maxOf(fromAggregated, fromDaily)
-
-            if (bestDuration > 0L) {
-                finalAppUsageMap[pkg] = bestDuration
-            }
-        }
+        val reconstruction = repository.evaluateAndSyncWindow(
+            windowStartMs = startTime,
+            windowEndMs = endTime,
+            zoneId = zoneId,
+            lookbackMs = UsageWindowBounds.DEFAULT_LOOKBACK_MS,
+            projectOngoingAtWindowEnd = true
+        )
 
         val maxPossible = (endTime - startTime).coerceAtLeast(0L)
-        val clampedAppUsage = finalAppUsageMap.mapValues { (_, dur) -> dur.coerceIn(0L, maxPossible) }
-        val totalScreenTime = clampedAppUsage.values.sum().coerceIn(0L, maxPossible)
+        val clampedAppUsage = reconstruction.appForegroundDurationMap.mapValues { (_, dur) ->
+            dur.coerceIn(0L, maxPossible)
+        }
+        val totalAppForeground = clampedAppUsage.values.sum().coerceIn(0L, maxPossible)
+        val unlockedDevice = reconstruction.unlockedDeviceDurationMs.coerceIn(0L, maxPossible)
+        val interactiveDevice = reconstruction.interactiveDeviceDurationMs.coerceIn(0L, maxPossible)
 
-        return ScreenTimeResult(totalScreenTime, clampedAppUsage)
+        return ScreenTimeResult(
+            totalScreenTimeMillis = totalAppForeground,
+            appUsageMap = clampedAppUsage,
+            unlockedDeviceTimeMillis = unlockedDevice,
+            interactiveDeviceTimeMillis = interactiveDevice,
+            hourlyAppForegroundMs = reconstruction.hourlyAppForegroundMs,
+            status = reconstruction.status,
+            diagnostics = reconstruction.diagnostics
+        )
     }
 
-    private fun isValidTrackableApp(
-        pm: PackageManager,
-        pkg: String,
-        ourPkg: String,
-        defaultLauncher: String?,
-        imePackages: Set<String>
-    ): Boolean {
-        if (pkg == ourPkg || pkg == defaultLauncher || EXCLUDED_PACKAGES.contains(pkg) || imePackages.contains(pkg)) {
-            return false
-        }
-        if (pkg == "com.android.systemui") return false
-
-        return try {
-            // Check if app has a launcher activity (user app)
-            if (pm.getLaunchIntentForPackage(pkg) != null) {
-                return true
-            }
-            // Or if it's a non-system user-installed app
-            val appInfo = pm.getApplicationInfo(pkg, 0)
-            val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-            !isSystem
-        } catch (e: Exception) {
-            false
+    /**
+     * Formats a duration in milliseconds for UI display only (never used for intermediate aggregation).
+     * Rounds to the nearest minute for durations >= 60s, and shows `< 1 Min.` for 1..59_999 ms.
+     */
+    fun formatDurationForDisplay(millis: Long): String {
+        if (millis <= 0L) return "0 Min."
+        if (millis < 60_000L) return "< 1 Min."
+        val roundedMinutes = ((millis + 30_000L) / 60_000L)
+        val hours = roundedMinutes / 60L
+        val remMin = roundedMinutes % 60L
+        return when {
+            hours > 0L && remMin > 0L -> "$hours Std. $remMin Min."
+            hours > 0L -> "$hours Std. 0 Min."
+            else -> "$remMin Min."
         }
     }
 }

@@ -167,6 +167,17 @@ class AppSettings private constructor(private val appContext: Context) {
         _completionAnimationEnabled.value = enabled
     }
 
+    // Explicit Local Diagnostics Mode (Off by default)
+    private val _diagnosticsModeEnabled = MutableStateFlow(
+        prefs.getBoolean(KEY_DIAGNOSTICS_MODE_ENABLED, false)
+    )
+    val diagnosticsModeEnabled: StateFlow<Boolean> = _diagnosticsModeEnabled.asStateFlow()
+
+    fun setDiagnosticsModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_DIAGNOSTICS_MODE_ENABLED, enabled).apply()
+        _diagnosticsModeEnabled.value = enabled
+    }
+
     companion object {
         private const val KEY_ROUTINES_RESET_INFO_DISMISSED = "routines_reset_info_dismissed"
         private const val KEY_GENERAL_REMINDER_ENABLED = "general_reminder_enabled"
@@ -177,6 +188,7 @@ class AppSettings private constructor(private val appContext: Context) {
         private const val KEY_BLOCK_RULE_MODE = "block_rule_mode"
         private const val KEY_BLOCK_DEADLINE_HOUR = "block_deadline_hour"
         private const val KEY_BLOCK_DEADLINE_MINUTE = "block_deadline_minute"
+        private const val KEY_DIAGNOSTICS_MODE_ENABLED = "diagnostics_mode_enabled"
 
         @Volatile
         private var instance: AppSettings? = null

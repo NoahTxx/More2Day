@@ -107,10 +107,14 @@ fun SettingsScreen(
     val reminderHour by appSettings.generalReminderHour.collectAsState()
     val reminderMinute by appSettings.generalReminderMinute.collectAsState()
     val blockedPackages by appSettings.blockedAppPackages.collectAsState()
+    val diagnosticsModeEnabled by appSettings.diagnosticsModeEnabled.collectAsState()
 
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
     var hasUsageStats by remember { mutableStateOf(false) }
     var showAppPickerSheet by remember { mutableStateOf(false) }
+    var diagnosticsPreviewText by remember { mutableStateOf<String?>(null) }
+    var isGeneratingDiagnostics by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Re-check permissions when returning from system settings
     LifecycleResumeEffect(Unit) {
@@ -491,6 +495,198 @@ fun SettingsScreen(
                                 ),
                                 color = accentColor
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section: Diagnose & Messqualität
+        item(key = "section_diagnostics_title") {
+            Text(
+                text = "MESSUNG & DIAGNOSE",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontFamily = GeistFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        item(key = "diagnostics_card") {
+            NothingCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = ShapeCardMedium,
+                backgroundColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Lokaler Diagnosemodus",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Zeigt rekonstruierte Intervalle, Messstatus, ausgeschlossene Abschnitte & Rohsummen (ms)",
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = GeistFontFamily),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = diagnosticsModeEnabled,
+                            onCheckedChange = { enabled ->
+                                appSettings.setDiagnosticsModeEnabled(enabled)
+                                if (!enabled) {
+                                    diagnosticsPreviewText = null
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = Color.White,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        )
+                    }
+
+                    if (diagnosticsModeEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (!isGeneratingDiagnostics) {
+                                        isGeneratingDiagnostics = true
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            val startOfDay = com.example.util.ScreenTimeCalculator.getTodayStartMillis()
+                                            val now = System.currentTimeMillis()
+                                            val res = com.example.util.ScreenTimeCalculator.getScreenTimeData(
+                                                context = context,
+                                                startTime = startOfDay,
+                                                endTime = now
+                                            )
+                                            val report = res.diagnostics
+                                            val formatted = if (report != null) {
+                                                com.example.usage.diagnostics.UsageDiagnosticsFormatter.formatReportForExport(
+                                                    report = report,
+                                                    hasUsagePermission = hasUsageStats,
+                                                    isAccessibilityEnabled = isAccessibilityEnabled
+                                                )
+                                            } else {
+                                                "Status: ${res.status.name} (Keine Diagnosedaten verfügbar – Berechtigung prüfen)"
+                                            }
+                                            withContext(Dispatchers.Main) {
+                                                diagnosticsPreviewText = formatted
+                                                isGeneratingDiagnostics = false
+                                            }
+                                        }
+                                    }
+                                },
+                                shape = ShapePill,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF24252C),
+                                    contentColor = Color.White
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF383A46)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = if (isGeneratingDiagnostics) "Lade..." else "Bericht erzeugen",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = GeistFontFamily,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+
+                            if (!diagnosticsPreviewText.isNullOrBlank()) {
+                                Button(
+                                    onClick = {
+                                        val reportText = diagnosticsPreviewText ?: return@Button
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                        clipboard?.setPrimaryClip(
+                                            android.content.ClipData.newPlainText("More2Day Diagnostics", reportText)
+                                        )
+                                        Toast.makeText(context, "Diagnosebericht in Zwischenablage kopiert", Toast.LENGTH_SHORT).show()
+
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_SUBJECT, "More2Day Screen Time Diagnostics")
+                                            putExtra(Intent.EXTRA_TEXT, reportText)
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Diagnosebericht exportieren"))
+                                    },
+                                    shape = ShapePill,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = accentColor,
+                                        contentColor = Color.Black
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Export / Kopieren",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = GeistFontFamily,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        if (!diagnosticsPreviewText.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF111216))
+                                    .border(1.dp, Color(0xFF282A33), RoundedCornerShape(10.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = diagnosticsPreviewText!!.take(2500),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = com.example.ui.theme.GeistMonoFontFamily,
+                                        fontSize = 10.sp,
+                                        lineHeight = 14.sp
+                                    ),
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
                         }
                     }
                 }

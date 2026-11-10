@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.widget.ImageView
 import androidx.compose.foundation.background
@@ -124,6 +123,8 @@ fun StatsScreen(
 
     var hasUsageStatsPermission by remember { mutableStateOf(false) }
     var totalScreenTimeMillis by remember { mutableLongStateOf(0L) }
+    var unlockedDeviceTimeMillis by remember { mutableLongStateOf(0L) }
+    var measurementStatus by remember { mutableStateOf(com.example.usage.model.MeasurementStatus.VALID_ZERO) }
     var appUsageList by remember { mutableStateOf<List<AppUsageItem>>(emptyList()) }
     var resumeTrigger by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
@@ -134,7 +135,13 @@ fun StatsScreen(
     }
 
     LaunchedEffect(hasUsageStatsPermission, blockedPackages, timeRange, resumeTrigger) {
-        if (!hasUsageStatsPermission) return@LaunchedEffect
+        if (!hasUsageStatsPermission) {
+            measurementStatus = com.example.usage.model.MeasurementStatus.PERMISSION_MISSING
+            totalScreenTimeMillis = 0L
+            unlockedDeviceTimeMillis = 0L
+            appUsageList = emptyList()
+            return@LaunchedEffect
+        }
 
         withContext(Dispatchers.IO) {
             val startTime = if (timeRange == TimeRangeFilter.TODAY) {
@@ -148,7 +155,7 @@ fun StatsScreen(
             val pm = context.packageManager
 
             val items = result.appUsageMap.entries
-                .filter { it.value >= 30_000L } // at least 30s
+                .filter { it.value > 0L }
                 .sortedByDescending { it.value }
                 .take(15)
                 .map { (pkg, usage) ->
@@ -175,13 +182,14 @@ fun StatsScreen(
 
             withContext(Dispatchers.Main) {
                 totalScreenTimeMillis = result.totalScreenTimeMillis
+                unlockedDeviceTimeMillis = result.unlockedDeviceTimeMillis
+                measurementStatus = result.status
                 appUsageList = items
             }
         }
     }
 
-    val totalHours = totalScreenTimeMillis / (1000 * 60 * 60)
-    val totalMinutes = (totalScreenTimeMillis / (1000 * 60)) % 60
+    val formattedTotalScreenTime = com.example.util.ScreenTimeCalculator.formatDurationForDisplay(totalScreenTimeMillis)
 
     LazyColumn(
         modifier = modifier
@@ -365,8 +373,8 @@ fun StatsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (hasUsageStatsPermission) {
-                                if (totalHours > 0) "$totalHours Std. $totalMinutes Min." else "$totalMinutes Min."
+                            text = if (hasUsageStatsPermission && measurementStatus != com.example.usage.model.MeasurementStatus.TEMPORARILY_UNAVAILABLE) {
+                                formattedTotalScreenTime
                             } else "--:--",
                             style = MaterialTheme.typography.displayMedium.copy(
                                 fontFamily = GeistFontFamily,
@@ -396,6 +404,27 @@ fun StatsScreen(
                                 color = Color(0xFF94A3B8)
                             )
                         }
+
+                        if (hasUsageStatsPermission) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val statusLabel = when (measurementStatus) {
+                                com.example.usage.model.MeasurementStatus.HISTORY_INCOMPLETE ->
+                                    "Hinweis: Historie am Fensterbeginn unvollständig • Gerät entsperrt: ${com.example.util.ScreenTimeCalculator.formatDurationForDisplay(unlockedDeviceTimeMillis)}"
+                                com.example.usage.model.MeasurementStatus.TEMPORARILY_UNAVAILABLE ->
+                                    "Nutzungsdaten vorübergehend nicht verfügbar"
+                                else ->
+                                    "Vordergrund-App-Zeit (entsperrt) • Gerät entsperrt: ${com.example.util.ScreenTimeCalculator.formatDurationForDisplay(unlockedDeviceTimeMillis)}"
+                            }
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = GeistFontFamily,
+                                    fontSize = 11.sp
+                                ),
+                                color = Color(0xFF64748B),
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -416,8 +445,14 @@ fun StatsScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (hasUsageStatsPermission) "Keine nennenswerte App-Aktivität erfasst."
-                                else "Nutzungsdaten-Zugriff erforderlich.",
+                                text = when (measurementStatus) {
+                                    com.example.usage.model.MeasurementStatus.PERMISSION_MISSING ->
+                                        "Nutzungsdaten-Zugriff erforderlich."
+                                    com.example.usage.model.MeasurementStatus.TEMPORARILY_UNAVAILABLE ->
+                                        "System-Nutzungsdaten sind momentan nicht verfügbar."
+                                    else ->
+                                        "Keine nennenswerte App-Aktivität erfasst."
+                                },
                                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = GeistFontFamily),
                                 color = Color(0xFF94A3B8),
                                 textAlign = TextAlign.Center
@@ -427,10 +462,8 @@ fun StatsScreen(
                 }
             } else {
                 items(appUsageList, key = { it.packageName }) { app ->
-                    val minutes = (app.usageMillis / (1000 * 60))
-                    val hours = minutes / 60
-                    val remMin = minutes % 60
-                    val formattedTime = if (hours > 0) "$hours Std. $remMin Min." else "$remMin Min."
+                    val minutes = ((app.usageMillis + 30_000L) / 60_000L)
+                    val formattedTime = com.example.util.ScreenTimeCalculator.formatDurationForDisplay(app.usageMillis)
                     val fraction = if (totalScreenTimeMillis > 0) {
                         (app.usageMillis.toFloat() / totalScreenTimeMillis.toFloat()).coerceIn(0.04f, 1f)
                     } else 0.04f

@@ -23,6 +23,8 @@ object DateUtils {
     private var cachedTodayDayMillis: Long = 0L
     @Volatile
     private var cachedTodayKey: String = ""
+    @Volatile
+    private var cachedZoneIdStr: String = ""
 
     private val isoDayOfWeekCache = ConcurrentHashMap<String, Int>(64)
     private val displayDateCache = ConcurrentHashMap<String, String>(64)
@@ -37,12 +39,14 @@ object DateUtils {
 
     fun getTodayKey(): String {
         val now = System.currentTimeMillis()
-        if (now - cachedTodayDayMillis in 0..5000L && cachedTodayKey.isNotEmpty()) {
+        val zoneId = java.time.ZoneId.systemDefault()
+        if (now - cachedTodayDayMillis in 0..5000L && cachedTodayKey.isNotEmpty() && cachedZoneIdStr == zoneId.id) {
             return cachedTodayKey
         }
-        val key = keyFormat.format(java.util.Date(now))
+        val key = com.example.usage.engine.UsageWindowBounds.getDateKeyForEpochMs(now, zoneId)
         cachedTodayKey = key
         cachedTodayDayMillis = now
+        cachedZoneIdStr = zoneId.id
         return key
     }
 
@@ -205,10 +209,7 @@ object DateUtils {
     fun daysBetween(fromKey: String, toKey: String): Int {
         if (fromKey == toKey) return 0
         return try {
-            val d1 = parseDateSafe(fromKey) ?: return 0
-            val d2 = parseDateSafe(toKey) ?: return 0
-            val diffMs = d2.time - d1.time
-            (diffMs / (24 * 60 * 60 * 1000L)).toInt()
+            com.example.usage.engine.UsageWindowBounds.daysBetween(fromKey, toKey)
         } catch (e: Exception) {
             0
         }
@@ -217,11 +218,7 @@ object DateUtils {
     fun addDays(dateKey: String, days: Int): String {
         if (days == 0) return dateKey
         return try {
-            val cal = Calendar.getInstance().apply {
-                time = parseDateSafe(dateKey) ?: return dateKey
-                add(Calendar.DAY_OF_YEAR, days)
-            }
-            keyFormat.format(cal.time)
+            com.example.usage.engine.UsageWindowBounds.addDays(dateKey, days)
         } catch (e: Exception) {
             dateKey
         }

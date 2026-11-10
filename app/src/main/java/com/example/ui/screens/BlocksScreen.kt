@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.widget.ImageView
@@ -793,13 +792,13 @@ private fun BlockFilterChip(
 
 private fun formatAppUsageText(millis: Long): String {
     if (millis <= 0L) return "Heute nicht genutzt"
-    val minutes = (millis / (1000 * 60))
+    if (millis < 60_000L) return "< 1m heute"
+    val minutes = ((millis + 30_000L) / 60_000L)
     val hours = minutes / 60
     val remMin = minutes % 60
     return when {
         hours > 0 && remMin > 0 -> "${hours}h ${remMin}m heute"
         hours > 0 -> "${hours}h heute"
-        minutes > 0 -> "${minutes}m heute"
-        else -> "< 1m heute"
+        else -> "${minutes}m heute"
     }
 }
